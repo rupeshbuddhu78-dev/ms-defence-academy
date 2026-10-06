@@ -89,14 +89,15 @@ async function listAttendance(req,res) {
   return respond(res,{records:data,summary:{totalClasses:total,present,absent:data.filter(x=>x.status==='absent').length,percentage:total?Math.round(present/total*10000)/100:0}});
 }
 async function markAttendance(req,res) {
-  const {token,studentProfileId,trainingSessionId,status='present',date=new Date()}=req.body;
+  const {token,studentProfileId,trainingSessionId,status='present',date=new Date(),attendanceDate,markedAt}=req.body;
   let profile;
   if(token) profile=await StudentProfile.findOne({qrToken:token}).select('+qrToken');
   else if(studentProfileId) profile=await StudentProfile.findById(studentProfileId);
   if(!profile)throw new HttpError(404,'Student not found for attendance');
   const batchId=profile.batchId;
-  const day=new Date(date); if(Number.isNaN(day.getTime()))throw new HttpError(400,'Invalid attendance date'); day.setUTCHours(0,0,0,0);
-  const entry=await Attendance.create({studentId:profile._id,batchId,trainingSessionId:trainingSessionId||null,date:day,time:new Date(),status,markedBy:req.user._id});
+  const day=new Date(attendanceDate || date); if(Number.isNaN(day.getTime()))throw new HttpError(400,'Invalid attendance date'); day.setUTCHours(0,0,0,0);
+  const markedTime=markedAt ? new Date(markedAt) : new Date(); if(Number.isNaN(markedTime.getTime()))throw new HttpError(400,'Invalid attendance time');
+  const entry=await Attendance.create({studentId:profile._id,batchId,trainingSessionId:trainingSessionId||null,date:day,time:markedTime,status,markedBy:req.user._id});
   return respond(res,entry,201);
 }
 async function listBatches(_req,res) { return respond(res,await Batch.find().sort({name:1})); }

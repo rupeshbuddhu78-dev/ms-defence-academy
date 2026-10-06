@@ -91,10 +91,17 @@ class _ScannerPageState extends State<ScannerPage> {
   Future<void> _markAttendance() async {
     final scannedToken = token;
     if (scannedToken == null || attendanceMarked) return;
+    final now = DateTime.now();
+    final localDate = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     setState(() => busy = true);
     try {
       await context.read<SessionProvider>().api.post(
-          '/attendance/mark', {'token': scannedToken, 'status': 'present'});
+          '/attendance/mark', {
+        'token': scannedToken,
+        'status': 'present',
+        'attendanceDate': localDate,
+        'markedAt': now.toUtc().toIso8601String(),
+      });
       if (mounted) {
         setState(() => attendanceMarked = true);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
