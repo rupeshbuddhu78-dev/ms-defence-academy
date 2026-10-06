@@ -17,6 +17,6 @@ router.post('/', allowRoles('admin'), uploadPhoto, asyncHandler(students.createS
 router.get('/:id', allowRoles('admin'), asyncHandler(students.getStudent));
 router.patch('/:id', allowRoles('admin'), asyncHandler(students.updateStudent));
 router.post('/:id/photo', allowRoles('admin'), uploadPhoto, asyncHandler(students.uploadStudentPhoto));
-router.delete('/:id', allowRoles('admin'), asyncHandler(students.deactivateStudent));
+router.delete('/:id', allowRoles('admin'), asyncHandler(students.deleteStudent));
 
 module.exports = router;

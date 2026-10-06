@@ -8,6 +8,7 @@ const { authenticate, allowRoles } = require('../middleware/auth');
 const router = express.Router();
 router.post('/auth/login', asyncHandler(auth.login));
 router.get('/auth/me', authenticate, asyncHandler(auth.me));
+router.post('/auth/change-password', authenticate, asyncHandler(auth.changePassword));
 router.use('/students', require('./students'));
 router.use('/attendance', require('./attendance'));
 router.use('/', require('./academy'));

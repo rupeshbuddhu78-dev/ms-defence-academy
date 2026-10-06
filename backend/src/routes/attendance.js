@@ -1,2 +1,14 @@
-const express=require('express');const c=require('../controllers/academy');const {asyncHandler}=require('../middleware/errors');const {authenticate,allowRoles}=require('../middleware/auth');
-const r=express.Router();r.use(authenticate);r.get('/',asyncHandler(c.listAttendance));r.post('/lookup-qr',allowRoles('admin'),asyncHandler(c.lookupQr));r.post('/mark',allowRoles('admin'),asyncHandler(c.markAttendance));module.exports=r;
+const express = require('express');
+const academy = require('../controllers/academy');
+const calendar = require('../controllers/attendance-calendar');
+const { asyncHandler } = require('../middleware/errors');
+const { authenticate, allowRoles } = require('../middleware/auth');
+
+const router = express.Router();
+router.use(authenticate);
+router.get('/calendar', allowRoles('admin'), asyncHandler(calendar.calendar));
+router.get('/', asyncHandler(academy.listAttendance));
+router.post('/lookup-qr', allowRoles('admin'), asyncHandler(academy.lookupQr));
+router.post('/mark', allowRoles('admin'), asyncHandler(academy.markAttendance));
+
+module.exports = router;

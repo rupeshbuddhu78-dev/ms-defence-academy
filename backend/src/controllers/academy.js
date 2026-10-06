@@ -49,9 +49,13 @@ async function studentQr(req,res) { const p=await StudentProfile.findOne({userId
 async function lookupQr(req,res) { const token=String(req.body.token||''); if(token.length<32)throw new HttpError(400,'QR token is invalid'); const p=await StudentProfile.findOne({qrToken:token}).select('+qrToken').populate('userId','name phone isActive').populate('batchId','name'); if(!p||!p.userId?.isActive)throw new HttpError(404,'Student QR was not recognized'); return respond(res,{profile:{id:p.id,studentId:p.studentId,name:p.userId.name,phone:p.userId.phone,batch:p.batchId?.name||'',photo:p.photo}}); }
 async function listAttendance(req,res) {
   const filter={}; if(req.query.studentId)filter.studentId=req.query.studentId; if(req.query.batchId)filter.batchId=req.query.batchId;
-  if(req.query.from||req.query.to)filter.date={...(req.query.from?{$gte:new Date(req.query.from)}:{}),...(req.query.to?{$lte:new Date(req.query.to)}:{})};
+  if(req.query.from||req.query.to) {
+    const from=req.query.from?new Date(req.query.from):null, to=req.query.to?new Date(req.query.to):null;
+    if((from&&Number.isNaN(from.getTime()))||(to&&Number.isNaN(to.getTime()))||(from&&to&&to<from)) throw new HttpError(400,'Attendance date range is invalid');
+    filter.date={...(from?{$gte:from}:{}),...(to?{$lte:to}:{})};
+  }
   if(req.user.role==='student')filter.studentId=(await studentProfile(req.user.id))._id;
-  const data=await Attendance.find(filter).populate({path:'studentId',populate:{path:'userId',select:'name'}}).populate('batchId','name').populate('markedBy','name').sort({date:-1}).limit(500);
+  const data=await Attendance.find(filter).populate({path:'studentId',populate:{path:'userId',select:'name phone'}}).populate('batchId','name').populate('markedBy','name').sort({date:-1,time:-1}).limit(1000);
   const present=data.filter(x=>x.status==='present').length, total=data.length;
   return respond(res,{records:data,summary:{totalClasses:total,present,absent:data.filter(x=>x.status==='absent').length,percentage:total?Math.round(present/total*10000)/100:0}});
 }
@@ -62,7 +66,7 @@ async function markAttendance(req,res) {
   else if(studentProfileId) profile=await StudentProfile.findById(studentProfileId);
   if(!profile)throw new HttpError(404,'Student not found for attendance');
   const batchId=profile.batchId;
-  const day=new Date(date); if(Number.isNaN(day.getTime()))throw new HttpError(400,'Invalid attendance date'); day.setHours(0,0,0,0);
+  const day=new Date(date); if(Number.isNaN(day.getTime()))throw new HttpError(400,'Invalid attendance date'); day.setUTCHours(0,0,0,0);
   const entry=await Attendance.create({studentId:profile._id,batchId,trainingSessionId:trainingSessionId||null,date:day,time:new Date(),status,markedBy:req.user._id});
   return respond(res,entry,201);
 }

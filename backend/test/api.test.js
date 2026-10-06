@@ -4,6 +4,19 @@ const request = require('supertest');
 process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long';
 const app = require('../src/app');
 
+test('Aadhaar service encrypts data at rest and supports authenticated decryption', () => {
+  const previous = process.env.AADHAAR_ENCRYPTION_KEY;
+  process.env.AADHAAR_ENCRYPTION_KEY = '8'.repeat(64);
+  const { encryptAadhaar, decryptAadhaar } = require('../src/services/personal-data');
+  const aadhaar = '123456789012';
+  const ciphertext = encryptAadhaar(aadhaar);
+  assert.ok(ciphertext.startsWith('v1:'));
+  assert.notEqual(ciphertext, aadhaar);
+  assert.equal(decryptAadhaar(ciphertext), aadhaar);
+  if (previous === undefined) delete process.env.AADHAAR_ENCRYPTION_KEY;
+  else process.env.AADHAAR_ENCRYPTION_KEY = previous;
+});
+
 test('service root provides API information', async () => {
   const response = await request(app).get('/');
   assert.equal(response.status, 200);
@@ -57,6 +70,24 @@ test('exam authoring endpoint rejects unauthenticated callers', async () => {
 
 test('notice publishing endpoint rejects unauthenticated callers', async () => {
   const response = await request(app).post('/api/notices').send({ title: 'Unauthorized notice' });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('student hard-delete endpoint rejects unauthenticated callers', async () => {
+  const response = await request(app).delete('/api/students/507f1f77bcf86cd799439011');
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('test deletion endpoint rejects unauthenticated callers', async () => {
+  const response = await request(app).delete('/api/tests/507f1f77bcf86cd799439011');
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('password change requires a valid authenticated session', async () => {
+  const response = await request(app).post('/api/auth/change-password').send({ newPassword: 'a-secure-test-password' });
   assert.equal(response.status, 401);
   assert.equal(response.body.ok, false);
 });
