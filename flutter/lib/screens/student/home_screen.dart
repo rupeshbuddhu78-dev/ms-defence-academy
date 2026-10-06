@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/session_provider.dart';
@@ -33,6 +34,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void reload() => setState(() {
         future = context.read<SessionProvider>().api.get('/dashboard');
       });
+
+  String _trainingDateTime(dynamic item) {
+    final date = DateTime.tryParse(item['date']?.toString() ?? '')?.toLocal();
+    final dateLabel = date == null
+        ? 'Date not set'
+        : DateFormat('dd MMM yyyy').format(date);
+    return '$dateLabel  •  ${item['startTime'] ?? ''}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ...trainings.take(2).map((x) => _infoCard(
             Icons.fitness_center,
             x['title'] ?? 'Training',
-            '${x['date'] ?? ''}  •  ${x['startTime'] ?? ''}'))
+            _trainingDateTime(x)))
       ],
       if (tests.isNotEmpty) ...[
         const SizedBox(height: 20),

@@ -49,7 +49,10 @@ class _TrainingPageState extends State<TrainingPage> {
             return ListView(
                 padding: const EdgeInsets.all(16),
                 children: items
-                    .map((item) => Card(
+                    .map((item) {
+                      final date = DateTime.tryParse(item['date']?.toString() ?? '')?.toLocal();
+                      final dateLabel = date == null ? 'Date not set' : DateFormat('EEE, dd MMM yyyy').format(date);
+                      return Card(
                           child: ListTile(
                             isThreeLine: true,
                             leading: const CircleAvatar(
@@ -58,9 +61,10 @@ class _TrainingPageState extends State<TrainingPage> {
                                     color: AcademyColors.green)),
                             title: Text(item['title'] ?? 'Training'),
                             subtitle: Text(
-                                '${item['type'] ?? 'Physical Training'}\n${item['date'] ?? ''} • ${item['startTime'] ?? ''}–${item['endTime'] ?? ''}\n${item['location'] ?? ''}'),
+                                '${item['type'] ?? 'Physical Training'}\n$dateLabel • ${item['startTime'] ?? ''}–${item['endTime'] ?? ''}\n${item['location'] ?? ''}'),
                           ),
-                        ))
+                        );
+                    })
                     .toList());
           },
         ),
