@@ -18,6 +18,8 @@ const schema = new mongoose.Schema({
   payments: [{
     amount: { type: Number, min: 0 },
     paymentDate: { type: Date, default: Date.now },
+    paymentMethod: { type: String, enum: ['cash', 'online'], default: 'cash' },
+    transactionId: { type: String, default: '', trim: true },
     note: { type: String, default: '' },
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   }],

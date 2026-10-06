@@ -39,6 +39,22 @@ function validDate(value, label) {
   if (!value || Number.isNaN(date.getTime())) throw new HttpError(400, `${label} is invalid`);
   return date;
 }
+function paymentDetails(body, amount, label = 'Payment') {
+  const paymentMethod = String(body.paymentMethod || 'cash').toLowerCase();
+  if (!['cash', 'online'].includes(paymentMethod)) {
+    throw new HttpError(400, `${label} method must be cash or online`);
+  }
+  const transactionId = String(body.transactionId || '').trim();
+  if (paymentMethod === 'online' && !transactionId) {
+    throw new HttpError(400, 'Transaction ID is required for online payments');
+  }
+  const paymentDate = body.paymentDate === undefined
+    ? new Date()
+    : validDate(body.paymentDate, `${label} date`);
+  return { amount, paymentDate, paymentMethod,
+    transactionId: paymentMethod === 'online' ? transactionId : '',
+    note: String(body.note || '').trim() };
+}
 
 async function activeBatch(batchId) {
   if (!batchId || !mongoose.isValidObjectId(batchId)) throw new HttpError(400, 'Select a valid batch');
@@ -371,6 +387,7 @@ async function createFee(req, res) {
   if (String(profile.batchId || '') !== String(batch._id)) {
     throw new HttpError(400, 'Selected student does not belong to the selected batch');
   }
+  const initialPayment = paidAmount > 0 ? paymentDetails(req.body, paidAmount, 'Initial payment') : null;
   const fee = await Fee.create({
     studentId,
     batchId: batch._id,
@@ -378,7 +395,7 @@ async function createFee(req, res) {
     paidAmount,
     status: paidAmount >= totalFees ? 'paid' : paidAmount > 0 ? 'partial' : 'due',
     remarks: String(req.body.remarks || ''),
-    payments: paidAmount > 0 ? [{ amount: paidAmount, note: 'Initial payment', recordedBy: req.user._id }] : [],
+    payments: initialPayment ? [{ ...initialPayment, note: initialPayment.note || 'Initial payment', recordedBy: req.user._id }] : [],
   });
   return respond(res, fee, 201);
 }

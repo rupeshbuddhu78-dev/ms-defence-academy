@@ -1,0 +1,68 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/app_theme.dart';
+import '../../providers/session_provider.dart';
+import '../student/home_screen.dart';
+import '../student/student_pages.dart';
+import '../admin/admin_pages.dart';
+import '../admin/student_management_page.dart' as student_management;
+import '../admin/attendance_admin_page.dart' as attendance_admin;
+
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  int index = 0;
+  int _homeRefreshToken = 0;
+  @override
+  Widget build(BuildContext context) {
+    final admin = context.watch<SessionProvider>().isAdmin;
+    final pages = admin
+        ? <Widget>[
+            HomeScreen(refreshToken: _homeRefreshToken),
+            const student_management.StudentDirectoryPage(),
+            const attendance_admin.AdminAttendancePage(),
+            const AdminMorePage()
+          ]
+        : <Widget>[
+            HomeScreen(refreshToken: _homeRefreshToken),
+            const TrainingPage(),
+            const AttendancePage(),
+            const ProfilePage()
+          ];
+    final labels = admin
+        ? ['Dashboard', 'Students', 'Attendance', 'More']
+        : ['Home', 'Training', 'Attendance', 'Profile'];
+    final icons = admin
+        ? [
+            Icons.dashboard_outlined,
+            Icons.groups_outlined,
+            Icons.fact_check_outlined,
+            Icons.grid_view_rounded
+          ]
+        : [
+            Icons.home_outlined,
+            Icons.fitness_center_outlined,
+            Icons.calendar_month_outlined,
+            Icons.person_outline
+          ];
+    return Scaffold(
+        body: IndexedStack(index: index, children: pages),
+        bottomNavigationBar: NavigationBar(
+            selectedIndex: index,
+            onDestinationSelected: (i) => setState(() {
+                  index = i;
+                  if (i == 0) _homeRefreshToken++;
+                }),
+            indicatorColor: AcademyColors.mint,
+            destinations: List.generate(
+                labels.length,
+                (i) => NavigationDestination(
+                    icon: Icon(icons[i]),
+                    selectedIcon: Icon(icons[i], color: AcademyColors.green),
+                    label: labels[i]))));
+  }
+}
