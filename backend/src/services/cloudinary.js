@@ -1,0 +1,57 @@
+const cloudinary = require('cloudinary').v2;
+const { HttpError } = require('../middleware/errors');
+
+function isConfigured() {
+  return Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET,
+  );
+}
+
+function configure() {
+  if (!isConfigured()) {
+    throw new HttpError(503, 'Profile-photo storage is not configured');
+  }
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+}
+
+async function uploadImage(buffer, folder = 'ms-defence-academy/students') {
+  configure();
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: 'image',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        transformation: [
+          { width: 1280, height: 1280, crop: 'limit', quality: 'auto', fetch_format: 'auto' },
+        ],
+      },
+      (error, result) => {
+        if (error || !result?.secure_url || !result?.public_id) {
+          return reject(new HttpError(502, 'Cloud image upload failed'));
+        }
+        resolve({ url: result.secure_url, publicId: result.public_id });
+      },
+    );
+    stream.end(buffer);
+  });
+}
+
+async function deleteImage(publicId) {
+  if (!publicId || !isConfigured()) return;
+  configure();
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: 'image', invalidate: true });
+  } catch (_) {
+    // A failed cleanup must not expose Cloudinary details or overwrite the primary API result.
+  }
+}
+
+module.exports = { isConfigured, uploadImage, deleteImage };

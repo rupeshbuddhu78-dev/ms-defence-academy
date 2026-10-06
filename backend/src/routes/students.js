@@ -1,5 +1,22 @@
-const express=require('express');const c=require('../controllers/academy');const {asyncHandler}=require('../middleware/errors');const {authenticate,allowRoles}=require('../middleware/auth');
-const r=express.Router();r.use(authenticate);
-r.get('/profile',allowRoles('student'),asyncHandler(c.getProfile));r.get('/profile/qr',allowRoles('student'),asyncHandler(c.studentQr));
-r.get('/',allowRoles('admin'),asyncHandler(c.listStudents));r.post('/',allowRoles('admin'),asyncHandler(c.createStudent));r.get('/:id',allowRoles('admin'),asyncHandler(c.getStudent));r.patch('/:id',allowRoles('admin'),asyncHandler(c.updateStudent));r.delete('/:id',allowRoles('admin'),asyncHandler(c.deactivateStudent));
-module.exports=r;
+const express = require('express');
+const academy = require('../controllers/academy');
+const students = require('../controllers/students');
+const { asyncHandler } = require('../middleware/errors');
+const { authenticate, allowRoles } = require('../middleware/auth');
+const { uploadPhoto } = require('../middleware/photoUpload');
+
+const router = express.Router();
+router.use(authenticate);
+
+router.get('/profile', allowRoles('student'), asyncHandler(students.getOwnProfile));
+router.post('/profile/photo', allowRoles('student'), uploadPhoto, asyncHandler(students.uploadOwnPhoto));
+router.get('/profile/qr', allowRoles('student'), asyncHandler(academy.studentQr));
+
+router.get('/', allowRoles('admin'), asyncHandler(students.listStudents));
+router.post('/', allowRoles('admin'), uploadPhoto, asyncHandler(students.createStudent));
+router.get('/:id', allowRoles('admin'), asyncHandler(students.getStudent));
+router.patch('/:id', allowRoles('admin'), asyncHandler(students.updateStudent));
+router.post('/:id/photo', allowRoles('admin'), uploadPhoto, asyncHandler(students.uploadStudentPhoto));
+router.delete('/:id', allowRoles('admin'), asyncHandler(students.deactivateStudent));
+
+module.exports = router;

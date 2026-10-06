@@ -1,2 +1,16 @@
-const express=require('express');const c=require('../controllers/academy');const {asyncHandler}=require('../middleware/errors');const {authenticate,allowRoles}=require('../middleware/auth');
-const r=express.Router();r.use(authenticate);r.get('/',asyncHandler(c.listTests));r.post('/',allowRoles('admin'),asyncHandler(c.createTest));r.get('/results',asyncHandler(c.listResults));r.get('/:id',asyncHandler(c.getTest));r.post('/:id/questions',allowRoles('admin'),asyncHandler(c.addQuestion));r.patch('/:id/publish',allowRoles('admin'),asyncHandler(c.publishTest));r.post('/:id/start',allowRoles('student'),asyncHandler(c.startTest));r.post('/:id/submit',allowRoles('student'),asyncHandler(c.submitTest));module.exports=r;
+const express = require('express');
+const controller = require('../controllers/academy-workflow');
+const { asyncHandler } = require('../middleware/errors');
+const { authenticate, allowRoles } = require('../middleware/auth');
+
+const router = express.Router();
+router.use(authenticate);
+router.get('/', asyncHandler(controller.listTests));
+router.post('/', allowRoles('admin'), asyncHandler(controller.createTest));
+router.get('/results', asyncHandler(controller.listResults));
+router.get('/:id', asyncHandler(controller.getTest));
+router.post('/:id/questions', allowRoles('admin'), asyncHandler(controller.addQuestion));
+router.patch('/:id/publish', allowRoles('admin'), asyncHandler(controller.publishTest));
+router.post('/:id/start', allowRoles('student'), asyncHandler(controller.startTest));
+router.post('/:id/submit', allowRoles('student'), asyncHandler(controller.submitTest));
+module.exports = router;

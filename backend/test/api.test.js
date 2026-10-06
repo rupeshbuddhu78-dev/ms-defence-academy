@@ -42,3 +42,21 @@ test('protected APIs reject requests without a bearer token', async () => {
   assert.equal(response.status, 401);
   assert.equal(response.body.ok, false);
 });
+
+test('student onboarding endpoint is admin-authenticated', async () => {
+  const response = await request(app).post('/api/students').field('name', 'Test Student');
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('exam authoring endpoint rejects unauthenticated callers', async () => {
+  const response = await request(app).post('/api/tests').send({ title: 'Unauthorized test' });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('notice publishing endpoint rejects unauthenticated callers', async () => {
+  const response = await request(app).post('/api/notices').send({ title: 'Unauthorized notice' });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
