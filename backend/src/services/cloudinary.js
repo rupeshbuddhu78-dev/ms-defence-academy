@@ -21,6 +21,24 @@ function configure() {
   });
 }
 
+function safeProviderFailure(error) {
+  let reason = String(error?.message || error?.error?.message || 'Provider returned no error details');
+  for (const secret of [
+    process.env.CLOUDINARY_API_SECRET,
+    process.env.CLOUDINARY_API_KEY,
+    process.env.CLOUDINARY_CLOUD_NAME,
+  ].filter(Boolean)) {
+    reason = reason.split(secret).join('[redacted]');
+  }
+  reason = reason
+    .replace(/(api[_ -]?secret|api[_ -]?key|authorization|signature)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
+    .replace(/\b[a-f0-9]{32,}\b/gi, '[redacted]')
+    .replace(/[\r\n\t]+/g, ' ')
+    .slice(0, 180);
+  const code = error?.http_code ?? error?.statusCode ?? error?.error?.http_code ?? error?.error?.code;
+  return { code: code == null ? null : String(code).slice(0, 24), reason };
+}
+
 async function uploadImage(buffer, folder = 'ms-defence-academy/students') {
   configure();
   return new Promise((resolve, reject) => {
@@ -35,7 +53,11 @@ async function uploadImage(buffer, folder = 'ms-defence-academy/students') {
       },
       (error, result) => {
         if (error || !result?.secure_url || !result?.public_id) {
-          return reject(new HttpError(502, 'Cloud image upload failed'));
+          const diagnostic = safeProviderFailure(
+            error || new Error('Provider returned an incomplete upload result'),
+          );
+          console.error('[cloudinary-upload-error]', JSON.stringify(diagnostic));
+          return reject(new HttpError(502, 'Cloud image upload failed', diagnostic));
         }
         resolve({ url: result.secure_url, publicId: result.public_id });
       },
@@ -54,4 +76,4 @@ async function deleteImage(publicId) {
   }
 }
 
-module.exports = { isConfigured, uploadImage, deleteImage };
+module.exports = { isConfigured, uploadImage, deleteImage, safeProviderFailure };
