@@ -5,6 +5,8 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/session_provider.dart';
 import '../../widgets/async_state.dart';
 import '../admin/admin_pages.dart';
+import '../admin/attendance_admin_page.dart' as attendance_admin;
+import '../admin/student_management_page.dart' as student_management;
 import 'extras_pages.dart';
 import 'student_pages.dart';
 
@@ -37,7 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    final admin = context.watch<SessionProvider>().isAdmin;
+    final session = context.watch<SessionProvider>();
+    final admin = session.isAdmin;
     return Scaffold(
       backgroundColor: AcademyColors.surface,
       body: FutureBuilder<dynamic>(
@@ -53,7 +56,12 @@ class _HomeScreenState extends State<HomeScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               children: [
-                _Header(admin: admin, onRefresh: reload),
+                _Header(
+                  admin: admin,
+                  onRefresh: reload,
+                  studentName: session.user?['name']?.toString() ?? '',
+                  studentPhoto: session.profile?['photo']?.toString() ?? '',
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
                   child: Column(
@@ -77,8 +85,8 @@ class _HomeScreenState extends State<HomeScreen> {
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2,
         childAspectRatio: 1.28, mainAxisSpacing: 12, crossAxisSpacing: 12,
         children: [
-          _StatCard('Total Students', '${stats['totalStudents'] ?? 0}', Icons.groups_rounded, AcademyColors.green, () => _open(const StudentDirectoryPage())),
-          _StatCard('Present Today', '${stats['todayPresent'] ?? 0}', Icons.person_add_alt_1_rounded, const Color(0xFF1688C7), () => _open(const AdminAttendancePage())),
+          _StatCard('Total Students', '${stats['totalStudents'] ?? 0}', Icons.groups_rounded, AcademyColors.green, () => _open(const student_management.StudentDirectoryPage())),
+          _StatCard('Present Today', '${stats['todayPresent'] ?? 0}', Icons.person_add_alt_1_rounded, const Color(0xFF1688C7), () => _open(const attendance_admin.AdminAttendancePage())),
           _StatCard('Active Batches', '${stats['totalBatches'] ?? 0}', Icons.school_rounded, const Color(0xFFB68A08), () => _open(const BatchManagementPage())),
           _StatCard("Today's Classes", '${stats['todayClasses'] ?? 0}', Icons.calendar_month_rounded, const Color(0xFF15558A), () => _open(const TrainingAdminPage())),
         ],
@@ -126,8 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  final bool admin; final VoidCallback onRefresh;
-  const _Header({required this.admin, required this.onRefresh});
+  final bool admin; final VoidCallback onRefresh; final String studentName, studentPhoto;
+  const _Header({required this.admin, required this.onRefresh, this.studentName = '', this.studentPhoto = ''});
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(18, 12, 8, 16),
@@ -139,7 +147,17 @@ class _Header extends StatelessWidget {
         Text('MS DEFENCE ACADEMY', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         SizedBox(height: 3), Text('DISCIPLINE  •  DEDICATION  •  SUCCESS', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Color(0xFFE4D190), fontSize: 8, fontWeight: FontWeight.w600, letterSpacing: .5)),
       ])),
-      if (admin) const CircleAvatar(radius: 19, backgroundColor: Color(0xFFE4D190), child: Icon(Icons.person, color: AcademyColors.forest)),
+      if (admin)
+        const CircleAvatar(radius: 19, backgroundColor: Color(0xFFE4D190), child: Icon(Icons.person, color: AcademyColors.forest))
+      else
+        CircleAvatar(
+          radius: 19,
+          backgroundColor: AcademyColors.mint,
+          backgroundImage: studentPhoto.startsWith('http') ? NetworkImage(studentPhoto) : null,
+          child: studentPhoto.startsWith('http')
+              ? null
+              : Text(studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S', style: const TextStyle(color: AcademyColors.green, fontWeight: FontWeight.bold)),
+        ),
       IconButton(onPressed: () {}, color: Colors.white, icon: const Icon(Icons.notifications_none_rounded)),
       IconButton(onPressed: onRefresh, color: Colors.white, icon: const Icon(Icons.refresh_rounded)),
     ])),
@@ -158,7 +176,15 @@ class _HeroCard extends StatelessWidget {
       Positioned(right: -28, bottom: -34, child: Transform.rotate(angle: -.65, child: Container(width: 130, height: 18, color: const Color(0xFFE4D190)))),
       Positioned(right: -12, bottom: -16, child: Transform.rotate(angle: -.65, child: Container(width: 120, height: 8, color: AcademyColors.green))),
       Padding(padding: const EdgeInsets.fromLTRB(22, 20, 18, 18), child: Row(children: [
-        if (photo.isNotEmpty) ...[CircleAvatar(radius: 33, backgroundColor: Colors.white, backgroundImage: photo.startsWith('http') ? NetworkImage(photo) : null), const SizedBox(width: 14)],
+        if (photo.isNotEmpty) ...[
+          CircleAvatar(
+            radius: 33,
+            backgroundColor: Colors.white,
+            backgroundImage: photo.startsWith('http') ? NetworkImage(photo) : null,
+            child: photo.startsWith('http') ? null : Text(highlight.isNotEmpty ? highlight[0].toUpperCase() : 'S', style: const TextStyle(color: AcademyColors.green, fontSize: 24, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 14),
+        ],
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(eyebrow, style: const TextStyle(color: Color(0xFFE4D190), fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
           const SizedBox(height: 8),
