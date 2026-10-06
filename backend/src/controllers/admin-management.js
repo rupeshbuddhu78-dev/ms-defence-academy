@@ -170,4 +170,11 @@ async function updateFee(req, res) {
   return respond(res, fee);
 }
 
-module.exports = { updateBatch, deleteBatch, updateTraining, deleteTraining, updateFee };
+async function deleteFee(req, res) {
+  const id = objectId(req.params.id, 'Fee record');
+  const fee = await Fee.findByIdAndDelete(id);
+  if (!fee) throw new HttpError(404, 'Fee record not found');
+  return respond(res, { message: 'Fee record permanently deleted', id });
+}
+
+module.exports = { updateBatch, deleteBatch, updateTraining, deleteTraining, updateFee, deleteFee };

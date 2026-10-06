@@ -92,12 +92,11 @@ function addFeeSummary(profile, records = []) {
 async function generateStudentId() {
   const existing = await StudentProfile.find({ studentId: /^MSDA\d+$/i })
     .select('studentId').lean();
-  const used = new Set(existing.map(profile => String(profile.studentId).toUpperCase()));
-  for (let sequence = 1; sequence <= existing.length + 1; sequence += 1) {
-    const value = `MSDA${String(sequence).padStart(2, '0')}`;
-    if (!used.has(value)) return value;
-  }
-  throw new HttpError(503, 'Could not generate a unique student ID; try again');
+  const highest = existing.reduce((max, profile) => {
+    const sequence = Number(String(profile.studentId).replace(/^MSDA/i, ''));
+    return Number.isSafeInteger(sequence) ? Math.max(max, sequence) : max;
+  }, 0);
+  return `MSDA${String(highest + 1).padStart(2, '0')}`;
 }
 
 function numericAmount(value, fieldName) {
@@ -120,22 +119,25 @@ async function listStudents(req, res) {
     if (!mongoose.isValidObjectId(req.query.batchId)) throw new HttpError(400, 'Batch ID is invalid');
     filter.batchId = req.query.batchId;
   }
-  let profiles = await StudentProfile.find(filter)
+  const query = String(req.query.q || '').trim();
+  if (query) {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    const matchingUsers = await User.find({
+      role: 'student',
+      $or: [{ name: regex }, { phone: regex }, { email: regex }],
+    }).select('_id').limit(500).lean();
+    filter.$or = [
+      { studentId: regex },
+      { userId: { $in: matchingUsers.map(user => user._id) } },
+    ];
+  }
+  const profiles = await StudentProfile.find(filter)
     .select('-aadhaarEncrypted -aadhaarLast4')
     .populate('userId', 'name email phone isActive')
     .populate('batchId', 'name course trainer startTime endTime status')
     .sort({ createdAt: -1 })
-    .limit(500);
-  if (req.query.q) {
-    const query = String(req.query.q).trim().toLowerCase();
-    profiles = profiles.filter(profile => {
-      const user = profile.userId || {};
-      return [profile.studentId, user.name, user.email, user.phone]
-        .some(value => String(value || '').toLowerCase().includes(query));
-    }).slice(0, 200);
-  } else {
-    profiles = profiles.slice(0, 200);
-  }
+    .limit(200);
   const fees = await feeDetails(profiles.map(profile => profile._id));
   return respond(res, profiles.map(profile => addFeeSummary(
     safeProfile(profile), fees.get(String(profile._id)) || [],
@@ -214,6 +216,7 @@ async function createStudent(req, res) {
     if (totalFees > 0) {
       fee = await Fee.create({
         studentId: profile._id,
+        batchId: batch._id,
         totalFees,
         paidAmount,
         status: paidAmount >= totalFees ? 'paid' : paidAmount > 0 ? 'partial' : 'due',

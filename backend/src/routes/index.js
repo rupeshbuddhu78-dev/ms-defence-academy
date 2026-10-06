@@ -19,6 +19,7 @@ router.post('/notices', authenticate, allowRoles('admin'), asyncHandler(controll
 router.get('/fees', authenticate, asyncHandler(controller.getFees));
 router.post('/fees', authenticate, allowRoles('admin'), asyncHandler(controller.createFee));
 router.patch('/fees/:id', authenticate, allowRoles('admin'), asyncHandler(adminManagement.updateFee));
+router.delete('/fees/:id', authenticate, allowRoles('admin'), asyncHandler(adminManagement.deleteFee));
 router.post('/fees/:id/payments', authenticate, allowRoles('admin'), asyncHandler(controller.recordPayment));
 router.get('/notifications', authenticate, asyncHandler(notifications.list));
 router.patch('/notifications/:id/read', authenticate, asyncHandler(notifications.markRead));

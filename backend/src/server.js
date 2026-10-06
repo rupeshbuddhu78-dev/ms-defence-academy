@@ -17,8 +17,16 @@ async function start() {
 
   const port = Number(process.env.PORT || 4000);
   const server = app.listen(port, '0.0.0.0', () => console.log(`MS Defence Academy API listening on ${port}`));
+  const exams = require('./services/exams');
+  const submitExpired = () => exams.autoSubmitExpiredAttempts().catch(error => {
+    console.error('Expired test auto-submit failed:', error.message);
+  });
+  void submitExpired();
+  const examTimer = setInterval(submitExpired, 15000);
+  examTimer.unref();
   const shutdown = async signal => {
     console.log(`${signal}: shutting down`);
+    clearInterval(examTimer);
     server.close(async () => { await require('mongoose').disconnect(); process.exit(0); });
     setTimeout(() => process.exit(1), 10000).unref();
   };

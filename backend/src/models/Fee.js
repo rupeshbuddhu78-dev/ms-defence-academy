@@ -12,6 +12,7 @@ const adjustmentSchema = new mongoose.Schema({
 
 const schema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentProfile', required: true, index: true },
+  batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', index: true },
   totalFees: { type: Number, required: true, min: 0 },
   paidAmount: { type: Number, default: 0, min: 0 },
   payments: [{

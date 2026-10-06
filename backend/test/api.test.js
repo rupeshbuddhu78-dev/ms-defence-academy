@@ -107,6 +107,24 @@ test('admin fee and batch update endpoints reject unauthenticated callers', asyn
   assert.equal(removeBatch.status, 401);
 });
 
+test('fee delete endpoint rejects unauthenticated callers', async () => {
+  const response = await request(app).delete('/api/fees/507f1f77bcf86cd799439011');
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('exam edit, bulk-question, answer-save and result endpoints require authentication', async () => {
+  const id = '507f1f77bcf86cd799439011';
+  const edit = await request(app).patch(`/api/tests/${id}`).send({ title: 'Edited' });
+  const bulk = await request(app).patch(`/api/tests/${id}/questions/bulk`).send({ questions: [] });
+  const save = await request(app).patch(`/api/tests/${id}/answers`).send({ answers: [] });
+  const results = await request(app).get('/api/tests/results');
+  for (const response of [edit, bulk, save, results]) {
+    assert.equal(response.status, 401);
+    assert.equal(response.body.ok, false);
+  }
+});
+
 test('training edit and delete endpoints reject unauthenticated callers', async () => {
   const update = await request(app).patch('/api/training/507f1f77bcf86cd799439011').send({ title: 'Updated training' });
   assert.equal(update.status, 401);
