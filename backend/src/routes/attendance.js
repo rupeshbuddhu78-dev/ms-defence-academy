@@ -1,0 +1,2 @@
+const express=require('express');const c=require('../controllers/academy');const {asyncHandler}=require('../middleware/errors');const {authenticate,allowRoles}=require('../middleware/auth');
+const r=express.Router();r.use(authenticate);r.get('/',asyncHandler(c.listAttendance));r.post('/lookup-qr',allowRoles('admin'),asyncHandler(c.lookupQr));r.post('/mark',allowRoles('admin'),asyncHandler(c.markAttendance));module.exports=r;

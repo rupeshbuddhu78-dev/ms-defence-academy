@@ -1,0 +1,1 @@
+module.exports={User:require('./User'),StudentProfile:require('./StudentProfile'),Batch:require('./Batch'),Attendance:require('./Attendance'),TrainingSession:require('./TrainingSession'),Test:require('./Test'),Question:require('./Question'),TestAttempt:require('./TestAttempt'),Notice:require('./Notice'),Fee:require('./Fee'),Notification:require('./Notification')};
