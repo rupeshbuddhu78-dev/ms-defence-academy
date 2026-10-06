@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
@@ -91,9 +90,12 @@ function addFeeSummary(profile, records = []) {
 }
 
 async function generateStudentId() {
-  for (let attempts = 0; attempts < 5; attempts += 1) {
-    const value = `MSDA${Date.now().toString().slice(-7)}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-    if (!await StudentProfile.exists({ studentId: value })) return value;
+  const existing = await StudentProfile.find({ studentId: /^MSDA\d+$/i })
+    .select('studentId').lean();
+  const used = new Set(existing.map(profile => String(profile.studentId).toUpperCase()));
+  for (let sequence = 1; sequence <= existing.length + 1; sequence += 1) {
+    const value = `MSDA${String(sequence).padStart(2, '0')}`;
+    if (!used.has(value)) return value;
   }
   throw new HttpError(503, 'Could not generate a unique student ID; try again');
 }

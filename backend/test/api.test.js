@@ -86,6 +86,28 @@ test('test deletion endpoint rejects unauthenticated callers', async () => {
   assert.equal(response.body.ok, false);
 });
 
+test('admin fee and batch update endpoints reject unauthenticated callers', async () => {
+  const fee = await request(app).patch('/api/fees/507f1f77bcf86cd799439011').send({ totalFees: 100 });
+  assert.equal(fee.status, 401);
+  const batch = await request(app).patch('/api/batches/507f1f77bcf86cd799439011').send({ name: 'Updated batch' });
+  assert.equal(batch.status, 401);
+  const removeBatch = await request(app).delete('/api/batches/507f1f77bcf86cd799439011');
+  assert.equal(removeBatch.status, 401);
+});
+
+test('training edit and delete endpoints reject unauthenticated callers', async () => {
+  const update = await request(app).patch('/api/training/507f1f77bcf86cd799439011').send({ title: 'Updated training' });
+  assert.equal(update.status, 401);
+  const remove = await request(app).delete('/api/training/507f1f77bcf86cd799439011');
+  assert.equal(remove.status, 401);
+});
+
+test('photo uploader recognizes a JPEG file signature independent of the filename', () => {
+  const { matchesImageSignature } = require('../src/middleware/photoUpload');
+  assert.equal(matchesImageSignature(Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), true);
+  assert.equal(matchesImageSignature(Buffer.from('not-an-image-file')), false);
+});
+
 test('password change requires a valid authenticated session', async () => {
   const response = await request(app).post('/api/auth/change-password').send({ newPassword: 'a-secure-test-password' });
   assert.equal(response.status, 401);

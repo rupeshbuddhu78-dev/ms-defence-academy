@@ -4,6 +4,7 @@ const auth = require('../controllers/auth');
 const notifications = require('../controllers/notifications');
 const controller = require('../controllers/academy-workflow');
 const { authenticate, allowRoles } = require('../middleware/auth');
+const adminManagement = require('../controllers/admin-management');
 
 const router = express.Router();
 router.post('/auth/login', asyncHandler(auth.login));
@@ -17,6 +18,7 @@ router.get('/notices', authenticate, asyncHandler(controller.listNotices));
 router.post('/notices', authenticate, allowRoles('admin'), asyncHandler(controller.createNotice));
 router.get('/fees', authenticate, asyncHandler(controller.getFees));
 router.post('/fees', authenticate, allowRoles('admin'), asyncHandler(controller.createFee));
+router.patch('/fees/:id', authenticate, allowRoles('admin'), asyncHandler(adminManagement.updateFee));
 router.post('/fees/:id/payments', authenticate, allowRoles('admin'), asyncHandler(controller.recordPayment));
 router.get('/notifications', authenticate, asyncHandler(notifications.list));
 router.patch('/notifications/:id/read', authenticate, asyncHandler(notifications.markRead));
