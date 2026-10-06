@@ -46,7 +46,33 @@ async function updateStudent(req,res) {
 }
 async function deactivateStudent(req,res) { const p=await StudentProfile.findById(req.params.id); if(!p)throw new HttpError(404,'Student not found'); await User.findByIdAndUpdate(p.userId,{isActive:false}); return respond(res,{message:'Student deactivated'}); }
 async function studentQr(req,res) { const p=await StudentProfile.findOne({userId:req.user.id}).select('+qrToken').populate('userId','name').populate('batchId','name'); if(!p)throw new HttpError(404,'Student profile not found'); return respond(res,{token:p.qrToken,studentId:p.studentId,name:p.userId.name,batch:p.batchId?.name||''}); }
-async function lookupQr(req,res) { const token=String(req.body.token||''); if(token.length<32)throw new HttpError(400,'QR token is invalid'); const p=await StudentProfile.findOne({qrToken:token}).select('+qrToken').populate('userId','name phone isActive').populate('batchId','name'); if(!p||!p.userId?.isActive)throw new HttpError(404,'Student QR was not recognized'); return respond(res,{profile:{id:p.id,studentId:p.studentId,name:p.userId.name,phone:p.userId.phone,batch:p.batchId?.name||'',photo:p.photo}}); }
+async function lookupQr(req, res) {
+  const token = String(req.body.token || '');
+  if (token.length < 32) throw new HttpError(400, 'QR token is invalid');
+  const profile = await StudentProfile.findOne({ qrToken: token })
+    .select('+qrToken')
+    .populate('userId', 'name phone isActive')
+    .populate('batchId', 'name');
+  if (!profile || !profile.userId?.isActive) {
+    throw new HttpError(404, 'Student QR was not recognized');
+  }
+  return respond(res, {
+    profile: {
+      id: profile.id,
+      studentId: profile.studentId,
+      name: profile.userId.name,
+      phone: profile.userId.phone,
+      batch: profile.batchId?.name || '',
+      photo: profile.photo,
+      course: profile.course || '',
+      dateOfBirth: profile.dateOfBirth,
+      heightCm: profile.heightCm,
+      weightKg: profile.weightKg,
+      chestCm: profile.chestCm,
+      joiningDate: profile.joiningDate,
+    },
+  });
+}
 async function listAttendance(req,res) {
   const filter={}; if(req.query.studentId)filter.studentId=req.query.studentId; if(req.query.batchId)filter.batchId=req.query.batchId;
   if(req.query.from||req.query.to) {

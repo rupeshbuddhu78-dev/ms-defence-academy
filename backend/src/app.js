@@ -7,6 +7,8 @@ const apiRoutes = require('./routes');
 const { notFound, errorHandler } = require('./middleware/errors');
 
 const app = express();
+// Render terminates the public connection at one reverse-proxy hop.
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN === '*' ? true : (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()), credentials: false }));

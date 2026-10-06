@@ -4,6 +4,10 @@ const request = require('supertest');
 process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long';
 const app = require('../src/app');
 
+test('trusts the single reverse proxy used by Render', () => {
+  assert.equal(app.get('trust proxy'), 1);
+});
+
 test('Aadhaar service encrypts data at rest and supports authenticated decryption', () => {
   const previous = process.env.AADHAAR_ENCRYPTION_KEY;
   process.env.AADHAAR_ENCRYPTION_KEY = '8'.repeat(64);
