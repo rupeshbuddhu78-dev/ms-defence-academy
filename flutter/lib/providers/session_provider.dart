@@ -14,7 +14,16 @@ class SessionProvider extends ChangeNotifier {
   bool get mustChangePassword => user?['mustChangePassword'] == true;
 
   Future<void> restore() async {
-    final saved = await _storage.read(key: 'academy.jwt');
+    String? saved;
+    try {
+      saved = await _storage.read(key: 'academy.jwt');
+    } catch (_) {
+      // Some Android devices can reject an old/corrupt secure-storage entry.
+      // Start signed out instead of crashing during app launch.
+      await _clearStoredTokenSafely();
+      notifyListeners();
+      return;
+    }
     if (saved == null) return;
     api.token = saved;
     try {
@@ -27,11 +36,19 @@ class SessionProvider extends ChangeNotifier {
       final invalidSession = error is ApiException &&
           (error.statusCode == 401 || error.statusCode == 403);
       if (invalidSession) {
-        await _storage.delete(key: 'academy.jwt');
+        await _clearStoredTokenSafely();
         api.token = null;
       }
     }
     notifyListeners();
+  }
+
+  Future<void> _clearStoredTokenSafely() async {
+    try {
+      await _storage.delete(key: 'academy.jwt');
+    } catch (_) {
+      // A storage cleanup failure must never prevent the login screen opening.
+    }
   }
 
   Future<bool> login(String identifier, String password) async {
@@ -76,7 +93,7 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _storage.delete(key: 'academy.jwt');
+    await _clearStoredTokenSafely();
     api.token = null;
     user = null;
     profile = null;
