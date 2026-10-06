@@ -1,10 +1,20 @@
 require('dotenv').config();
 const app = require('./app');
 const { connectDatabase } = require('./config/db');
+const { seedDemoData } = require('./seed');
 
 async function start() {
-  if ((process.env.JWT_SECRET || '').length < 32) throw new Error('JWT_SECRET must be at least 32 characters');
+  if ((process.env.JWT_SECRET || '').length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters');
+  }
+
   await connectDatabase();
+
+  if (process.env.SEED_DEMO_ON_START === 'true') {
+    const seeded = await seedDemoData();
+    console.log(`Demo seed complete (admin ${seeded.adminCreated ? 'created' : 'already present'}, student ${seeded.studentCreated ? 'created' : 'already present'}).`);
+  }
+
   const port = Number(process.env.PORT || 4000);
   const server = app.listen(port, '0.0.0.0', () => console.log(`MS Defence Academy API listening on ${port}`));
   const shutdown = async signal => {
@@ -15,5 +25,10 @@ async function start() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
-if (require.main === module) start().catch(err => { console.error('Startup failed:', err.message); process.exit(1); });
+
+if (require.main === module) start().catch(err => {
+  console.error('Startup failed:', err.message);
+  process.exit(1);
+});
+
 module.exports = start;
