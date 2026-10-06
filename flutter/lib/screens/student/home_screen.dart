@@ -77,10 +77,10 @@ class _HomeScreenState extends State<HomeScreen> {
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2,
         childAspectRatio: 1.28, mainAxisSpacing: 12, crossAxisSpacing: 12,
         children: [
-          _StatCard('Total Students', '${stats['totalStudents'] ?? 0}', Icons.groups_rounded, AcademyColors.green),
-          _StatCard('Present Today', '${stats['todayPresent'] ?? 0}', Icons.person_add_alt_1_rounded, const Color(0xFF1688C7)),
-          _StatCard('Active Batches', '${stats['totalBatches'] ?? 0}', Icons.school_rounded, const Color(0xFFB68A08)),
-          _StatCard("Today's Classes", '${stats['todayClasses'] ?? 0}', Icons.calendar_month_rounded, const Color(0xFF15558A)),
+          _StatCard('Total Students', '${stats['totalStudents'] ?? 0}', Icons.groups_rounded, AcademyColors.green, () => _open(const StudentDirectoryPage())),
+          _StatCard('Present Today', '${stats['todayPresent'] ?? 0}', Icons.person_add_alt_1_rounded, const Color(0xFF1688C7), () => _open(const AdminAttendancePage())),
+          _StatCard('Active Batches', '${stats['totalBatches'] ?? 0}', Icons.school_rounded, const Color(0xFFB68A08), () => _open(const BatchManagementPage())),
+          _StatCard("Today's Classes", '${stats['todayClasses'] ?? 0}', Icons.calendar_month_rounded, const Color(0xFF15558A), () => _open(const TrainingAdminPage())),
         ],
       ),
       const SizedBox(height: 26), const _SectionHeading('Quick Access'), const SizedBox(height: 12),
@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       _HeroCard(eyebrow: 'DISCIPLINE  •  DEDICATION  •  SUCCESS', title: 'Welcome back,', highlight: name, subtitle: '${p['studentId'] ?? '—'}  •  $batch', photo: photo),
       const SizedBox(height: 22),
-      Row(children: [Expanded(child: _StatCard('Attendance', '${att['percentage'] ?? 0}%', Icons.groups_rounded, const Color(0xFF15934F))), const SizedBox(width: 12), Expanded(child: _StatCard('Present', '${att['present'] ?? 0}', Icons.check_circle_rounded, const Color(0xFF1688C7)))]),
+      Row(children: [Expanded(child: _StatCard('Attendance', '${att['percentage'] ?? 0}%', Icons.groups_rounded, const Color(0xFF15934F), () => _open(const AttendancePage()))), const SizedBox(width: 12), Expanded(child: _StatCard('Present', '${att['present'] ?? 0}', Icons.check_circle_rounded, const Color(0xFF1688C7), () => _open(const AttendancePage())))]),
       const SizedBox(height: 26), const _SectionHeading('Quick actions', lightning: true), const SizedBox(height: 12),
       GridView.count(
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 3,
@@ -152,7 +152,7 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(22),
-    child: SizedBox(height: 184, child: Stack(fit: StackFit.expand, children: [
+    child: SizedBox(height: 198, child: Stack(fit: StackFit.expand, children: [
       Image.asset('assets/academy_hero_mobile.jpg', fit: BoxFit.cover),
       Container(color: AcademyColors.forest.withValues(alpha: .68)),
       Positioned(right: -28, bottom: -34, child: Transform.rotate(angle: -.65, child: Container(width: 130, height: 18, color: const Color(0xFFE4D190)))),
@@ -161,9 +161,10 @@ class _HeroCard extends StatelessWidget {
         if (photo.isNotEmpty) ...[CircleAvatar(radius: 33, backgroundColor: Colors.white, backgroundImage: photo.startsWith('http') ? NetworkImage(photo) : null), const SizedBox(width: 14)],
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(eyebrow, style: const TextStyle(color: Color(0xFFE4D190), fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
-          const SizedBox(height: 12), Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w700)),
-          Text(highlight, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFF0D36F), fontSize: 27, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 5), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          SizedBox(height: 31, child: FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w700)))),
+          SizedBox(height: 36, child: FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(highlight, style: const TextStyle(color: Color(0xFFF0D36F), fontSize: 27, fontWeight: FontWeight.w800)))),
+          const SizedBox(height: 2), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
         ])),
       ])),
     ])),
@@ -171,13 +172,16 @@ class _HeroCard extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  final String label, value; final IconData icon; final Color accent;
-  const _StatCard(this.label, this.value, this.icon, this.accent);
+  final String label, value; final IconData icon; final Color accent; final VoidCallback? onTap;
+  const _StatCard(this.label, this.value, this.icon, this.accent, [this.onTap]);
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(19), border: Border.all(color: AcademyColors.line), boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 10, offset: Offset(0, 4))]),
     clipBehavior: Clip.antiAlias,
-    child: Stack(children: [
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(19),
+      child: Stack(children: [
       Positioned(bottom: -2, left: 0, right: 0, child: Container(height: 8, color: accent.withValues(alpha: .85))),
       Padding(padding: const EdgeInsets.fromLTRB(15, 14, 12, 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         CircleAvatar(radius: 20, backgroundColor: accent, child: Icon(icon, color: Colors.white, size: 23)), const Spacer(),
@@ -185,7 +189,8 @@ class _StatCard extends StatelessWidget {
         Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AcademyColors.muted)),
       ])),
       const Positioned(right: 10, bottom: 18, child: Icon(Icons.chevron_right_rounded, color: AcademyColors.muted, size: 23)),
-    ]),
+      ]),
+    ),
   );
 }
 
@@ -216,7 +221,16 @@ class _ActionTile extends StatelessWidget {
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: AcademyColors.line), boxShadow: const [BoxShadow(color: Color(0x0B000000), blurRadius: 7, offset: Offset(0, 3))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Container(width: 39, height: 39, decoration: BoxDecoration(color: gold ? const Color(0xFFFFF1C6) : AcademyColors.mint, shape: BoxShape.circle), child: Icon(icon, color: gold ? const Color(0xFF9B7700) : AcademyColors.green, size: 22)), const Spacer(), const Icon(Icons.chevron_right_rounded, size: 21, color: AcademyColors.muted)]),
-        const Spacer(), Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+        const Spacer(),
+        SizedBox(
+          height: 34,
+          width: double.infinity,
+          child: FittedBox(
+            alignment: Alignment.centerLeft,
+            fit: BoxFit.scaleDown,
+            child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+        ),
       ]),
     ),
   ));
