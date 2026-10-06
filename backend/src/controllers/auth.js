@@ -53,4 +53,26 @@ async function changePassword(req, res) {
   res.json({ ok: true, data: { user } });
 }
 
-module.exports = { login, me, changePassword };
+async function updateAdminAccount(req, res) {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.newPassword || '');
+  if (!email || !email.includes('@') || !email.includes('.') || email.length > 254) {
+    throw new HttpError(400, 'Enter a valid Gmail or email address');
+  }
+  if (password.length < 10 || password.length > 72) {
+    throw new HttpError(400, 'New password must be between 10 and 72 characters');
+  }
+  const conflict = await User.exists({ _id: { $ne: req.user.id }, email });
+  if (conflict) throw new HttpError(409, 'Another account already uses this email');
+  const user = await User.findById(req.user.id).select('+passwordHash');
+  if (!user || !user.isActive || user.role !== 'admin') {
+    throw new HttpError(403, 'Only an active admin can update this account');
+  }
+  user.email = email;
+  user.passwordHash = await User.hashPassword(password);
+  user.mustChangePassword = false;
+  await user.save();
+  res.json({ ok: true, data: { user } });
+}
+
+module.exports = { login, me, changePassword, updateAdminAccount };

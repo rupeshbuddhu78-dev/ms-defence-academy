@@ -92,6 +92,26 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateAdminAccount(String email, String newPassword) async {
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      final data = await api.patch('/auth/admin-account', {
+        'email': email,
+        'newPassword': newPassword,
+      });
+      user = Map<String, dynamic>.from(data['user']);
+      return true;
+    } catch (e) {
+      error = e is ApiException ? e.message : 'Unable to update admin account';
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     await _clearStoredTokenSafely();
     api.token = null;

@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/session_provider.dart';
 import '../../widgets/async_state.dart';
 import '../student/extras_pages.dart';
+import 'admin_account_page.dart';
 
 class _BulkQuestionDraft {
   final question = TextEditingController();
@@ -720,6 +721,8 @@ class AdminMorePage extends StatelessWidget {
               const NotificationsPage()),
           _link(context, 'Fees management',
               Icons.account_balance_wallet_outlined, const FeesPage()),
+          _link(context, 'Admin account', Icons.admin_panel_settings_outlined,
+              const AdminAccountPage()),
           Card(
               child: ListTile(
                   leading: const Icon(Icons.logout, color: AcademyColors.green),
