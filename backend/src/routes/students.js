@@ -15,6 +15,7 @@ router.get('/profile/qr', allowRoles('student'), asyncHandler(academy.studentQr)
 router.get('/', allowRoles('admin'), asyncHandler(students.listStudents));
 router.post('/', allowRoles('admin'), uploadPhoto, asyncHandler(students.createStudent));
 router.get('/:id', allowRoles('admin'), asyncHandler(students.getStudent));
+router.patch('/:id/password', allowRoles('admin'), asyncHandler(students.resetStudentPassword));
 router.patch('/:id', allowRoles('admin'), asyncHandler(students.updateStudent));
 router.post('/:id/photo', allowRoles('admin'), uploadPhoto, asyncHandler(students.uploadStudentPhoto));
 router.delete('/:id', allowRoles('admin'), asyncHandler(students.deleteStudent));

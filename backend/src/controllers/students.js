@@ -250,6 +250,28 @@ async function getStudent(req, res) {
   return respond(res, addFeeSummary(safeProfile(profile, { includeAadhaar: true }), records));
 }
 
+async function resetStudentPassword(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Student not found');
+  const temporaryPassword = String(req.body?.temporaryPassword || '');
+  if (temporaryPassword.length < 10 || temporaryPassword.length > 72) {
+    throw new HttpError(400, 'Temporary password must be between 10 and 72 characters');
+  }
+  const profile = await StudentProfile.findById(req.params.id);
+  if (!profile) throw new HttpError(404, 'Student not found');
+  const user = await User.findById(profile.userId).select('+passwordHash');
+  if (!user || user.role !== 'student' || !user.isActive) {
+    throw new HttpError(404, 'Active student account not found');
+  }
+  user.passwordHash = await User.hashPassword(temporaryPassword);
+  user.mustChangePassword = true;
+  await user.save();
+  return respond(res, {
+    message: 'Temporary password reset successfully',
+    studentId: profile.studentId,
+    mustChangePassword: true,
+  });
+}
+
 async function getOwnProfile(req, res) {
   const profile = await StudentProfile.findOne({ userId: req.user.id })
     .select('+aadhaarEncrypted +aadhaarLast4')
@@ -384,6 +406,7 @@ module.exports = {
   listStudents,
   createStudent,
   getStudent,
+  resetStudentPassword,
   getOwnProfile,
   updateStudent,
   deleteStudent,

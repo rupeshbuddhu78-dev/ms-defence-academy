@@ -84,6 +84,14 @@ test('student hard-delete endpoint rejects unauthenticated callers', async () =>
   assert.equal(response.body.ok, false);
 });
 
+test('student password reset endpoint rejects unauthenticated callers', async () => {
+  const response = await request(app)
+    .patch('/api/students/507f1f77bcf86cd799439011/password')
+    .send({ temporaryPassword: 'temporary-pass-2026' });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
 test('test deletion endpoint rejects unauthenticated callers', async () => {
   const response = await request(app).delete('/api/tests/507f1f77bcf86cd799439011');
   assert.equal(response.status, 401);
