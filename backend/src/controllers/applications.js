@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Batch = require('../models/Batch');
 const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
+const reserveStudentId = require('../services/student-id');
 
 const approvalLocks = new Set();
 
@@ -30,12 +31,6 @@ async function remove(req, res) {
   res.json({ ok: true, data: { message: 'Application deleted. The student must submit a new application.' } });
 }
 
-async function nextId() {
-  const rows = await StudentProfile.find({ studentId: /^MSDA\d+$/i }).select('studentId').lean();
-  const max = rows.reduce((m, x) => Math.max(m, Number(String(x.studentId).replace(/^MSDA/i)) || 0), 0);
-  return `MSDA${String(max + 1).padStart(2, '0')}`;
-}
-
 function duplicateKey(error) {
   return error && (error.code === 11000 || error.codeName === 'DuplicateKey');
 }
@@ -45,9 +40,28 @@ function phoneVariants(phone) {
   return [value, `91${value}`, `+91${value}`, `+91 ${value}`].filter(Boolean);
 }
 
+function flexiblePhoneRegex(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  const nationalNumber = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (nationalNumber.length !== 10) return null;
+  const numberPattern = nationalNumber.split('').join('\\D*');
+  return new RegExp(`^(?:(?:\\+|00)?\\D*91\\D*(?:0\\D*)?|0\\D*)?${numberPattern}\\D*$`);
+}
+
 async function findStudentUser(application) {
-  const byEmail = await User.findOne({ email: application.email }).select('+passwordHash');
-  const byPhone = application.phone ? await User.findOne({ phone: { $in: phoneVariants(application.phone) } }).select('+passwordHash') : null;
+  const email = String(application.email || '').trim().toLowerCase();
+  let byEmail = await User.findOne({ email }).select('+passwordHash');
+  if (!byEmail && email) {
+    const escaped = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    byEmail = await User.findOne({ email: new RegExp(`^${escaped}$`, 'i') }).select('+passwordHash');
+  }
+  let byPhone = application.phone
+    ? await User.findOne({ phone: { $in: phoneVariants(application.phone) } }).select('+passwordHash')
+    : null;
+  if (!byPhone && application.phone) {
+    const pattern = flexiblePhoneRegex(application.phone);
+    if (pattern) byPhone = await User.findOne({ phone: pattern }).select('+passwordHash');
+  }
   if (byEmail && byPhone && String(byEmail._id) !== String(byPhone._id)) {
     throw new HttpError(409, 'This email and phone belong to different accounts');
   }
@@ -129,8 +143,8 @@ async function review(req, res) {
     await application.save();
     return res.json({ ok: true, data: { message: 'Application approved; existing student profile was restored', studentId: profile.studentId, profile } });
   }
-  let studentId = await nextId();
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  let studentId = await reserveStudentId();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       profile = await StudentProfile.findOneAndUpdate(
         { userId: user._id },
@@ -139,10 +153,12 @@ async function review(req, res) {
       );
       break;
     } catch (error) {
-      if (!duplicateKey(error) || attempt === 2) throw error;
+      if (!duplicateKey(error) || attempt === 7) throw error;
       const existingProfile = await StudentProfile.findOne({ userId: user._id });
       if (existingProfile) { profile = existingProfile; break; }
-      studentId = await nextId();
+      const conflictingFields = Object.keys(error.keyPattern || {});
+      if (conflictingFields.length && conflictingFields.some(field => !['studentId', 'userId'].includes(field))) throw error;
+      studentId = await reserveStudentId();
     }
   }
   application.status = 'approved';
@@ -194,4 +210,4 @@ async function resubmit(req, res) {
   res.json({ ok: true, data: { message: 'Application resubmitted for admin review', application: safe } });
 }
 
-module.exports = { list, review, remove, resubmit };
+module.exports = { list, review, remove, resubmit, flexiblePhoneRegex };

@@ -9,6 +9,7 @@ const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
 const cloudImages = require('../services/cloudinary');
 const { encryptAadhaar, decryptAadhaar, normalizeAadhaar } = require('../services/personal-data');
+const reserveStudentId = require('../services/student-id');
 
 const respond = (res, data, status = 200) => res.status(status).json({ ok: true, data });
 const profileStringFields = [
@@ -89,16 +90,6 @@ function addFeeSummary(profile, records = []) {
   };
 }
 
-async function generateStudentId() {
-  const existing = await StudentProfile.find({ studentId: /^MSDA\d+$/i })
-    .select('studentId').lean();
-  const highest = existing.reduce((max, profile) => {
-    const sequence = Number(String(profile.studentId).replace(/^MSDA/i, ''));
-    return Number.isSafeInteger(sequence) ? Math.max(max, sequence) : max;
-  }, 0);
-  return `MSDA${String(highest + 1).padStart(2, '0')}`;
-}
-
 function numericAmount(value, fieldName) {
   const amount = value === undefined || value === null || value === '' ? 0 : Number(value);
   if (!Number.isFinite(amount) || amount < 0) throw new HttpError(400, `${fieldName} must be a non-negative amount`);
@@ -166,7 +157,7 @@ async function createStudent(req, res) {
 
   let studentId = String(body.studentId || '').trim().toUpperCase();
   if (studentId && await StudentProfile.exists({ studentId })) throw new HttpError(409, 'Student ID already exists');
-  if (!studentId) studentId = await generateStudentId();
+  if (!studentId) studentId = await reserveStudentId();
   const joiningDate = optionalDate(body.joiningDate, 'Joining date', false);
   const dateOfBirth = optionalDate(body.dateOfBirth, 'Date of birth');
   if (dateOfBirth && dateOfBirth > new Date()) throw new HttpError(400, 'Date of birth cannot be in the future');

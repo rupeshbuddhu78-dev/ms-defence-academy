@@ -78,6 +78,44 @@ test('student applications support a recoverable approval claim state', () => {
   assert.deepEqual(StudentApplication.schema.path('status').enumValues, ['pending', 'approving', 'approved', 'rejected']);
 });
 
+test('approval finds the same Indian phone despite legacy separators and country-code formats', () => {
+  const { flexiblePhoneRegex } = require('../src/controllers/applications');
+  const pattern = flexiblePhoneRegex('8651142739');
+  for (const value of ['8651142739', '+91 8651142739', '91-86511-42739', '0091 86511 42739', '08651142739']) {
+    assert.match(value, pattern);
+  }
+  assert.doesNotMatch('8651142738', pattern);
+  assert.equal(flexiblePhoneRegex('12345'), null);
+});
+
+test('duplicate-key errors identify the conflicting field without exposing its value', () => {
+  const { errorHandler } = require('../src/middleware/errors');
+  const previousWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  let status;
+  let body;
+  const response = {
+    status(code) { status = code; return this; },
+    json(payload) { body = payload; return this; },
+  };
+  try {
+    errorHandler({
+      code: 11000,
+      keyPattern: { studentId: 1 },
+      keyValue: { studentId: 'MSDA998877' },
+      collection: { collectionName: 'studentprofiles' },
+    }, { originalUrl: '/api/admin/applications/test/review' }, response, () => {});
+  } finally {
+    console.warn = previousWarn;
+  }
+  assert.equal(status, 409);
+  assert.equal(body.error.message, 'A record with this student ID already exists');
+  assert.doesNotMatch(JSON.stringify(body), /MSDA998877/);
+  assert.doesNotMatch(warnings.join(' '), /MSDA998877/);
+  assert.match(warnings.join(' '), /studentId/);
+});
+
 test('exam authoring endpoint rejects unauthenticated callers', async () => {
   const response = await request(app).post('/api/tests').send({ title: 'Unauthorized test' });
   assert.equal(response.status, 401);
