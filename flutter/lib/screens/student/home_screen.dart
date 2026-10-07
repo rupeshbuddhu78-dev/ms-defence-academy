@@ -9,6 +9,7 @@ import '../admin/attendance_admin_page.dart' as attendance_admin;
 import '../admin/student_management_page.dart' as student_management;
 import 'extras_pages.dart';
 import 'student_pages.dart';
+import '../shared/content_pages.dart';
 
 class HomeScreen extends StatefulWidget {
   final int refreshToken;
@@ -61,6 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   onRefresh: reload,
                   studentName: session.user?['name']?.toString() ?? '',
                   studentPhoto: session.profile?['photo']?.toString() ?? '',
+                  appName: session.settings['name']?.toString() ?? 'MS Defence Academy',
+                  logoUrl: session.settings['logoUrl']?.toString() ?? '',
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
@@ -79,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Widget> _admin(Map<String, dynamic> data) {
     final stats = Map<String, dynamic>.from(data['stats'] ?? {});
     return [
-      const _HeroCard(eyebrow: 'DISCIPLINE  •  DEDICATION  •  SUCCESS', title: 'Good morning,', highlight: 'Admin', subtitle: 'Your academy at a glance'),
+      _HeroCard(eyebrow: 'DISCIPLINE  •  DEDICATION  •  SUCCESS', title: _greeting(), highlight: 'Admin', subtitle: 'Your academy at a glance', backgroundUrl: context.read<SessionProvider>().settings['backgroundUrl']?.toString() ?? ''),
       const SizedBox(height: 22),
       GridView.count(
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2,
@@ -108,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final notices = data['notices'] as List? ?? [], trainings = data['trainings'] as List? ?? [], tests = data['tests'] as List? ?? [];
     final photo = (p['photo'] ?? '').toString(), name = (u['name'] ?? 'Student').toString();
     return [
-      _HeroCard(eyebrow: 'DISCIPLINE  •  DEDICATION  •  SUCCESS', title: 'Welcome back,', highlight: name, subtitle: '${p['studentId'] ?? '—'}  •  $batch', photo: photo),
+      _HeroCard(eyebrow: 'DISCIPLINE  •  DEDICATION  •  SUCCESS', title: _greeting(), highlight: name, subtitle: '${p['studentId'] ?? '—'}  •  $batch', photo: photo, backgroundUrl: context.read<SessionProvider>().settings['backgroundUrl']?.toString() ?? ''),
       const SizedBox(height: 22),
       Row(children: [Expanded(child: _StatCard('Attendance', '${att['percentage'] ?? 0}%', Icons.groups_rounded, const Color(0xFF15934F), () => _open(const AttendancePage()))), const SizedBox(width: 12), Expanded(child: _StatCard('Present', '${att['present'] ?? 0}', Icons.check_circle_rounded, const Color(0xFF1688C7), () => _open(const AttendancePage())))]),
       const SizedBox(height: 26), const _SectionHeading('Quick actions', lightning: true), const SizedBox(height: 12),
@@ -123,6 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _ActionTile('Notices', Icons.campaign_rounded, () => _open(const NoticesPage())),
           _ActionTile('Fees', Icons.account_balance_wallet_rounded, () => _open(const FeesPage())),
           _ActionTile('Alerts', Icons.notifications_rounded, () => _open(const NotificationsPage()), gold: true),
+          _ActionTile('Files', Icons.folder_copy_outlined, () => _open(const StudentMediaPage(kind: 'file'))),
+          _ActionTile('Videos', Icons.video_library_outlined, () => _open(const StudentMediaPage(kind: 'video'))),
         ],
       ),
       if (trainings.isNotEmpty) ...[const SizedBox(height: 22), const _SectionHeading('Upcoming training'), ...trainings.take(2).map((x) => _InfoCard(Icons.fitness_center, x['title'] ?? 'Training', _trainingDateTime(x)))],
@@ -131,20 +136,24 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
   void _open(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    return hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : 'Good evening,';
+  }
 }
 
 class _Header extends StatelessWidget {
-  final bool admin; final VoidCallback onRefresh; final String studentName, studentPhoto;
-  const _Header({required this.admin, required this.onRefresh, this.studentName = '', this.studentPhoto = ''});
+  final bool admin; final VoidCallback onRefresh; final String studentName, studentPhoto, appName, logoUrl;
+  const _Header({required this.admin, required this.onRefresh, this.studentName = '', this.studentPhoto = '', this.appName = 'MS Defence Academy', this.logoUrl = ''});
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(18, 12, 8, 16),
     decoration: const BoxDecoration(color: AcademyColors.forest, borderRadius: BorderRadius.vertical(bottom: Radius.circular(30))),
     child: SafeArea(bottom: false, child: Row(children: [
-      Image.asset('assets/academy_app_icon.png', width: 48, height: 48),
+      logoUrl.startsWith('http') ? Image.network(logoUrl, width: 48, height: 48, fit: BoxFit.contain) : Image.asset('assets/academy_app_icon.png', width: 48, height: 48),
       Container(width: 1, height: 42, color: Colors.white30, margin: const EdgeInsets.symmetric(horizontal: 12)),
-      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('MS DEFENCE ACADEMY', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(appName.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         SizedBox(height: 3), Text('DISCIPLINE  •  DEDICATION  •  SUCCESS', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Color(0xFFE4D190), fontSize: 8, fontWeight: FontWeight.w600, letterSpacing: .5)),
       ])),
       if (admin)
@@ -165,13 +174,13 @@ class _Header extends StatelessWidget {
 }
 
 class _HeroCard extends StatelessWidget {
-  final String eyebrow, title, highlight, subtitle, photo;
-  const _HeroCard({required this.eyebrow, required this.title, required this.highlight, required this.subtitle, this.photo = ''});
+  final String eyebrow, title, highlight, subtitle, photo, backgroundUrl;
+  const _HeroCard({required this.eyebrow, required this.title, required this.highlight, required this.subtitle, this.photo = '', this.backgroundUrl = ''});
   @override
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(22),
     child: SizedBox(height: 198, child: Stack(fit: StackFit.expand, children: [
-      Image.asset('assets/academy_hero_mobile.jpg', fit: BoxFit.cover),
+      backgroundUrl.startsWith('http') ? Image.network(backgroundUrl, fit: BoxFit.cover) : Image.asset('assets/academy_hero_mobile.jpg', fit: BoxFit.cover),
       Container(color: AcademyColors.forest.withValues(alpha: .68)),
       Positioned(right: -28, bottom: -34, child: Transform.rotate(angle: -.65, child: Container(width: 130, height: 18, color: const Color(0xFFE4D190)))),
       Positioned(right: -12, bottom: -16, child: Transform.rotate(angle: -.65, child: Container(width: 120, height: 8, color: AcademyColors.green))),

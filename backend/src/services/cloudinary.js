@@ -66,6 +66,24 @@ async function uploadImage(buffer, folder = 'ms-defence-academy/students') {
   });
 }
 
+async function uploadAuto(buffer, folder = 'ms-defence-academy/media') {
+  configure();
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'auto' },
+      (error, result) => {
+        if (error || !result?.secure_url || !result?.public_id) {
+          const diagnostic = safeProviderFailure(error || new Error('Provider returned an incomplete upload result'));
+          console.error('[cloudinary-media-upload-error]', JSON.stringify(diagnostic));
+          return reject(new HttpError(502, 'Cloud media upload failed', diagnostic));
+        }
+        resolve({ url: result.secure_url, publicId: result.public_id, resourceType: result.resource_type || 'auto', format: result.format || '' });
+      },
+    );
+    stream.end(buffer);
+  });
+}
+
 async function deleteImage(publicId) {
   if (!publicId || !isConfigured()) return;
   configure();
@@ -76,4 +94,4 @@ async function deleteImage(publicId) {
   }
 }
 
-module.exports = { isConfigured, uploadImage, deleteImage, safeProviderFailure };
+module.exports = { isConfigured, uploadImage, uploadAuto, deleteImage, safeProviderFailure };

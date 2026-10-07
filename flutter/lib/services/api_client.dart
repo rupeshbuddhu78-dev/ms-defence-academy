@@ -53,6 +53,7 @@ class ApiClient {
     File? file,
     String fileField = 'photo',
     void Function(int sent, int total)? onProgress,
+    Duration timeout = const Duration(minutes: 10),
   }) async {
     final client = http.Client();
     try {
@@ -68,7 +69,7 @@ class ApiClient {
       final upload = http.StreamedRequest(request.method, request.url)
         ..contentLength = total
         ..headers.addAll(request.headers);
-      final responseFuture = client.send(upload).timeout(_requestTimeout);
+      final responseFuture = client.send(upload).timeout(timeout);
       var sent = 0;
       onProgress?.call(sent, total);
       await for (final chunk in body) {
@@ -80,7 +81,7 @@ class ApiClient {
       onProgress?.call(total, total);
       final streamed = await responseFuture;
       final response =
-          await http.Response.fromStream(streamed).timeout(_requestTimeout);
+          await http.Response.fromStream(streamed).timeout(timeout);
       return _decode(response);
     } on TimeoutException {
       throw ApiException(

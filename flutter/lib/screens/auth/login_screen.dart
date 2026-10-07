@@ -34,6 +34,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final branding = context.watch<SessionProvider>().settings;
+    final appName = branding['name']?.toString() ?? 'MS Defence Academy';
+    final logoUrl = branding['logoUrl']?.toString() ?? '';
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -77,18 +80,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                                 clipBehavior: Clip.antiAlias,
-                                child: Image.asset(
-                                  'assets/academy_app_icon.png',
-                                  fit: BoxFit.contain,
-                                ),
+                                child: logoUrl.startsWith('http')
+                                    ? Image.network(logoUrl, fit: BoxFit.contain)
+                                    : Image.asset('assets/academy_app_icon.png', fit: BoxFit.contain),
                               ),
                               const SizedBox(height: 16),
-                              const Text('MS DEFENCE ACADEMY',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1)),
+                              Text(appName.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1)),
                               const SizedBox(height: 4),
                               const Text('DISCIPLINE • DEDICATION • SUCCESS',
                                   style: TextStyle(

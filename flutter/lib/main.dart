@@ -5,9 +5,14 @@ import 'providers/session_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/change_password_screen.dart';
 import 'screens/shared/app_shell.dart';
+import 'services/notification_service.dart';
 
-void main() => runApp(ChangeNotifierProvider(
-    create: (_) => SessionProvider()..restore(), child: const AcademyApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.instance.initialize();
+  runApp(ChangeNotifierProvider(
+      create: (_) => SessionProvider()..restore(), child: const AcademyApp()));
+}
 
 class AcademyApp extends StatelessWidget {
   const AcademyApp({super.key});

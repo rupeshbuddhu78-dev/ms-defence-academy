@@ -7,6 +7,7 @@ class SessionProvider extends ChangeNotifier {
   static final FlutterSecureStorage _storage = FlutterSecureStorage();
   Map<String, dynamic>? user;
   Map<String, dynamic>? profile;
+  Map<String, dynamic> settings = {};
   bool busy = false;
   String? error;
   bool get isLoggedIn => user != null;
@@ -14,6 +15,7 @@ class SessionProvider extends ChangeNotifier {
   bool get mustChangePassword => user?['mustChangePassword'] == true;
 
   Future<void> restore() async {
+    await loadSettings();
     String? saved;
     try {
       saved = await _storage.read(key: 'academy.jwt');
@@ -43,6 +45,21 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadSettings() async {
+    try {
+      final data = await api.get('/content/settings');
+      settings = Map<String, dynamic>.from(data);
+      notifyListeners();
+    } catch (_) {
+      // Bundled branding remains available if the server is unavailable.
+    }
+  }
+
+  void applySettings(Map<String, dynamic> value) {
+    settings = value;
+    notifyListeners();
+  }
+
   Future<void> _clearStoredTokenSafely() async {
     try {
       await _storage.delete(key: 'academy.jwt');
@@ -63,6 +80,7 @@ class SessionProvider extends ChangeNotifier {
       profile = data['profile'] == null
           ? null
           : Map<String, dynamic>.from(data['profile']);
+      await loadSettings();
       await _storage.write(key: 'academy.jwt', value: api.token!);
       return true;
     } catch (e) {
