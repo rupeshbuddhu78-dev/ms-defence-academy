@@ -46,6 +46,26 @@ async function findStudentUser(application) {
   return byEmail || byPhone;
 }
 
+async function getOrCreateStudentUser(application) {
+  const existing = await findStudentUser(application);
+  if (existing) return existing;
+  try {
+    return await User.findOneAndUpdate(
+      { email: application.email },
+      {
+        $set: { name: application.name, phone: application.phone, isActive: true, role: 'student', mustChangePassword: false },
+        $setOnInsert: { email: application.email, passwordHash: application.passwordHash },
+      },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+    ).select('+passwordHash');
+  } catch (error) {
+    if (!duplicateKey(error)) throw error;
+    const recovered = await findStudentUser(application);
+    if (recovered) return recovered;
+    throw error;
+  }
+}
+
 async function review(req, res) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Application not found');
   const application = await StudentApplication.findById(req.params.id).select('+passwordHash +aadhaarEncrypted');
@@ -64,21 +84,11 @@ async function review(req, res) {
   }
   const batch = await Batch.findOne({ _id: application.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
-  let user = await findStudentUser(application);
+  let user = await getOrCreateStudentUser(application);
   if (user && user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
-  if (!user) {
-    try {
-      user = await User.create({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student' });
-    } catch (error) {
-      if (!duplicateKey(error)) throw error;
-      user = await findStudentUser(application);
-      if (!user) throw error;
-      if (user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
-    }
-  } else {
+  if (user) {
     try {
       user.name = application.name;
-      user.email = application.email;
       user.phone = application.phone;
       user.isActive = true;
       await user.save();

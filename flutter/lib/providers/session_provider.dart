@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 import '../services/api_client.dart';
 
 class SessionProvider extends ChangeNotifier {
@@ -21,11 +22,21 @@ class SessionProvider extends ChangeNotifier {
   void setPendingApplication(Map<String, dynamic> value, String password) {
     application = value;
     applicationPassword = password;
+    _storage.write(key: 'academy.pending_application', value: jsonEncode(value));
+    _storage.write(key: 'academy.pending_password', value: password);
     notifyListeners();
   }
 
   Future<void> restore() async {
     await loadSettings();
+    try {
+      final pending = await _storage.read(key: 'academy.pending_application');
+      final password = await _storage.read(key: 'academy.pending_password');
+      if (pending != null && password != null) {
+        application = Map<String, dynamic>.from(jsonDecode(pending) as Map);
+        applicationPassword = password;
+      }
+    } catch (_) {}
     String? saved;
     try {
       saved = await _storage.read(key: 'academy.jwt');
@@ -95,6 +106,8 @@ class SessionProvider extends ChangeNotifier {
       if (data['pendingApplication'] == true) {
         application = Map<String, dynamic>.from(data['application']);
         applicationPassword = password;
+        await _storage.write(key: 'academy.pending_application', value: jsonEncode(application));
+        await _storage.write(key: 'academy.pending_password', value: password);
         return true;
       }
       api.token = data['token'];
@@ -102,6 +115,8 @@ class SessionProvider extends ChangeNotifier {
       profile = data['profile'] == null
           ? null
           : Map<String, dynamic>.from(data['profile']);
+      await _storage.delete(key: 'academy.pending_application');
+      await _storage.delete(key: 'academy.pending_password');
       await loadSettings();
       await _storage.write(key: 'academy.jwt', value: api.token!);
       return true;
@@ -211,6 +226,10 @@ class SessionProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     await _clearStoredTokenSafely();
+    try {
+      await _storage.delete(key: 'academy.pending_application');
+      await _storage.delete(key: 'academy.pending_password');
+    } catch (_) {}
     api.token = null;
     user = null;
     profile = null;
