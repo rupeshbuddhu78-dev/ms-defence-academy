@@ -1,7 +1,10 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
+const PasswordResetOtp = require('../models/PasswordResetOtp');
 const { HttpError } = require('../middleware/errors');
+const security = require('./security');
 
 function normalizedPhone(value) {
   const digits = String(value || '').replace(/\D/g, '');
@@ -19,8 +22,10 @@ async function login(req, res) {
   if (phone) clauses.push({ phone });
   const user = await User.findOne({ $or: clauses }).select('+passwordHash');
   if (!user || !user.isActive || !(await user.comparePassword(password))) {
+    await security.record(req, 'login_failed', { email: identifier.toLowerCase(), details: 'Invalid credentials' });
     throw new HttpError(401, 'Phone/email or password is incorrect');
   }
+  await security.record(req, 'login_success', { userId: user._id, role: user.role, email: user.email });
   const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     issuer: 'ms-defence-academy',
@@ -75,4 +80,54 @@ async function updateAdminAccount(req, res) {
   res.json({ ok: true, data: { user } });
 }
 
-module.exports = { login, me, changePassword, updateAdminAccount };
+async function requestPasswordReset(req, res) {
+  const email = security.cleanEmail(req.body.email);
+  if (!email || !email.includes('@')) throw new HttpError(400, 'Enter the registered email address');
+  const user = await User.findOne({ email, isActive: true });
+  if (user) {
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await PasswordResetOtp.deleteMany({ userId: user._id });
+    const reset = await PasswordResetOtp.create({
+      userId: user._id,
+      email,
+      codeHash: await User.hashPassword(otp),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      requestIp: req.ip || '',
+    });
+    try {
+      await security.sendOtpEmail({ email, name: user.name, otp });
+    } catch (error) {
+      await PasswordResetOtp.findByIdAndDelete(reset._id);
+      throw error;
+    }
+    await security.record(req, 'password_reset_requested', { userId: user._id, role: user.role, email });
+  }
+  // Do not reveal whether an email is registered.
+  res.json({ ok: true, data: { message: 'If the email is registered, an OTP has been sent.' } });
+}
+
+async function resetPassword(req, res) {
+  const email = security.cleanEmail(req.body.email);
+  const otp = String(req.body.otp || '').trim();
+  const password = String(req.body.newPassword || '');
+  if (!email || !otp || !/^\d{6}$/.test(otp)) throw new HttpError(400, 'Enter the 6-digit OTP');
+  if (password.length < 10 || password.length > 72) throw new HttpError(400, 'New password must be between 10 and 72 characters');
+  const user = await User.findOne({ email, isActive: true }).select('+passwordHash');
+  const reset = user && await PasswordResetOtp.findOne({ userId: user._id, email, usedAt: null, expiresAt: { $gt: new Date() } }).select('+codeHash').sort({ createdAt: -1 });
+  if (!user || !reset || reset.attempts >= 5) throw new HttpError(400, 'OTP is invalid or expired');
+  const otpValid = await bcrypt.compare(otp, reset.codeHash);
+  if (!otpValid) {
+    await PasswordResetOtp.updateOne({ _id: reset._id }, { $inc: { attempts: 1 } });
+    throw new HttpError(400, 'OTP is invalid or expired');
+  }
+  if (await user.comparePassword(password)) throw new HttpError(400, 'Choose a different password');
+  user.passwordHash = await User.hashPassword(password);
+  user.mustChangePassword = false;
+  await user.save();
+  reset.usedAt = new Date();
+  await reset.save();
+  await security.record(req, 'password_reset_completed', { userId: user._id, role: user.role, email });
+  res.json({ ok: true, data: { message: 'Password reset successfully' } });
+}
+
+module.exports = { login, me, changePassword, updateAdminAccount, requestPasswordReset, resetPassword };

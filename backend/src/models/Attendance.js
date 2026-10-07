@@ -3,7 +3,10 @@ const schema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentProfile', required: true, index: true },
   batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', index: true },
   trainingSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrainingSession', default: null },
-  date: { type: Date, required: true, index: true }, time: { type: Date, default: Date.now },
+  date: { type: Date, required: true, index: true },
+  time: { type: Date, default: Date.now },
+  entryAt: { type: Date, default: null, index: true },
+  exitAt: { type: Date, default: null },
   status: { type: String, enum: ['present', 'absent', 'holiday'], default: 'present', index: true },
   markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, notes: { type: String, default: '' }
 }, { timestamps: true });

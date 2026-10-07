@@ -455,6 +455,8 @@ class _StudentAttendanceHistoryPageState
                     DateTime.now();
                 final time =
                     DateTime.tryParse(record['time']?.toString() ?? '');
+                final entry = DateTime.tryParse(record['entryAt']?.toString() ?? '') ?? time;
+                final exit = DateTime.tryParse(record['exitAt']?.toString() ?? '');
                 final status = (record['status'] ?? 'unknown').toString();
                 final present = status == 'present';
                 final batch = record['batchId'] is Map
@@ -470,10 +472,8 @@ class _StudentAttendanceHistoryPageState
                     ),
                     title: Text(DateFormat('EEE, dd MMM yyyy').format(date)),
                     subtitle: Text(
-                        '${status.toUpperCase()}${batch.isEmpty ? '' : ' • $batch'}'),
-                    trailing: Text(time == null
-                        ? '—'
-                        : DateFormat('h:mm a').format(time.toLocal())),
+                        '${status.toUpperCase()}${batch.isEmpty ? '' : ' • $batch'}\nEntry: ${entry == null ? '—' : DateFormat('h:mm a').format(entry.toLocal())}  •  Exit: ${exit == null ? '—' : DateFormat('h:mm a').format(exit.toLocal())}'),
+                    isThreeLine: true,
                   ),
                 );
               },

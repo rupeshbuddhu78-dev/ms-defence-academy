@@ -57,6 +57,15 @@ async function lookupQr(req, res) {
   if (!profile || !profile.userId?.isActive) {
     throw new HttpError(404, 'Student QR was not recognized');
   }
+  const attendanceDate = String(req.body.attendanceDate || '');
+  const day = attendanceDate ? new Date(`${attendanceDate}T00:00:00.000Z`) : new Date();
+  if (Number.isNaN(day.getTime())) throw new HttpError(400, 'Invalid attendance date');
+  day.setUTCHours(0, 0, 0, 0);
+  const currentAttendance = await Attendance.findOne({
+    studentId: profile._id,
+    date: day,
+    status: 'present',
+  }).sort({ time: -1 });
   return respond(res, {
     profile: {
       id: profile.id,
@@ -72,6 +81,12 @@ async function lookupQr(req, res) {
       chestCm: profile.chestCm,
       joiningDate: profile.joiningDate,
     },
+    currentAttendance: currentAttendance ? {
+      id: currentAttendance.id,
+      entryAt: currentAttendance.entryAt || currentAttendance.time,
+      exitAt: currentAttendance.exitAt,
+      state: currentAttendance.exitAt ? 'exited' : 'inside',
+    } : null,
   });
 }
 async function listAttendance(req,res) {
@@ -89,7 +104,7 @@ async function listAttendance(req,res) {
   return respond(res,{records:data,summary:{totalClasses:total,present,absent:data.filter(x=>x.status==='absent').length,percentage:total?Math.round(present/total*10000)/100:0}});
 }
 async function markAttendance(req,res) {
-  const {token,studentProfileId,trainingSessionId,status='present',date=new Date(),attendanceDate,markedAt}=req.body;
+  const {token,studentProfileId,trainingSessionId,status='present',date=new Date(),attendanceDate,markedAt,action='entry'}=req.body;
   let profile;
   if(token) profile=await StudentProfile.findOne({qrToken:token}).select('+qrToken');
   else if(studentProfileId) profile=await StudentProfile.findById(studentProfileId);
@@ -97,8 +112,16 @@ async function markAttendance(req,res) {
   const batchId=profile.batchId;
   const day=new Date(attendanceDate || date); if(Number.isNaN(day.getTime()))throw new HttpError(400,'Invalid attendance date'); day.setUTCHours(0,0,0,0);
   const markedTime=markedAt ? new Date(markedAt) : new Date(); if(Number.isNaN(markedTime.getTime()))throw new HttpError(400,'Invalid attendance time');
-  const entry=await Attendance.create({studentId:profile._id,batchId,trainingSessionId:trainingSessionId||null,date:day,time:markedTime,status,markedBy:req.user._id});
-  return respond(res,entry,201);
+  const openEntry = await Attendance.findOne({ studentId: profile._id, date: day, status: 'present', exitAt: null }).sort({ time: -1 });
+  if (action === 'exit') {
+    if (!openEntry) throw new HttpError(409, 'No open entry was found for this student today');
+    openEntry.exitAt = markedTime;
+    await openEntry.save();
+    return respond(res, { attendance: openEntry, action: 'exit' });
+  }
+  if (openEntry) return respond(res, { attendance: openEntry, action: 'already_inside' });
+  const entry=await Attendance.create({studentId:profile._id,batchId,trainingSessionId:trainingSessionId||null,date:day,time:markedTime,entryAt:markedTime,status,markedBy:req.user._id});
+  return respond(res,{attendance:entry,action:'entry'},201);
 }
 async function listBatches(_req,res) { return respond(res,await Batch.find().sort({name:1})); }
 async function createBatch(req,res) { if(!req.body.name)throw new HttpError(400,'Batch name is required'); return respond(res,await Batch.create(req.body),201); }

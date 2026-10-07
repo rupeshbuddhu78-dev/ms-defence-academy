@@ -112,6 +112,42 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> requestPasswordReset(String email) async {
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      await api.post('/auth/request-password-reset', {'email': email});
+      return true;
+    } catch (e) {
+      error = e is ApiException ? e.message : 'Unable to send OTP';
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> resetPassword(String email, String otp, String newPassword) async {
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      await api.post('/auth/reset-password', {
+        'email': email,
+        'otp': otp,
+        'newPassword': newPassword,
+      });
+      return true;
+    } catch (e) {
+      error = e is ApiException ? e.message : 'Unable to reset password';
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     await _clearStoredTokenSafely();
     api.token = null;

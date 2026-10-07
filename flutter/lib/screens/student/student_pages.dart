@@ -191,6 +191,8 @@ class _AttendancePageState extends State<AttendancePage> {
                             DateTime.now();
                     final time =
                         DateTime.tryParse(record['time']?.toString() ?? '');
+                    final entry = DateTime.tryParse(record['entryAt']?.toString() ?? '') ?? time;
+                    final exit = DateTime.tryParse(record['exitAt']?.toString() ?? '');
                     final present = record['status'] == 'present';
                     return Card(
                         child: ListTile(
@@ -198,10 +200,8 @@ class _AttendancePageState extends State<AttendancePage> {
                           color:
                               present ? AcademyColors.green : Colors.redAccent),
                       title: Text(DateFormat('EEE, d MMM yyyy').format(date)),
-                      subtitle: Text(record['status'] ?? ''),
-                      trailing: Text(time == null
-                          ? ''
-                          : DateFormat('h:mm a').format(time.toLocal())),
+                      subtitle: Text('${record['status'] ?? ''}\nEntry: ${entry == null ? '—' : DateFormat('h:mm a').format(entry.toLocal())}  •  Exit: ${exit == null ? '—' : DateFormat('h:mm a').format(exit.toLocal())}'),
+                      isThreeLine: true,
                     ));
                   }),
               ],

@@ -5,12 +5,16 @@ const notifications = require('../controllers/notifications');
 const controller = require('../controllers/academy-workflow');
 const { authenticate, allowRoles } = require('../middleware/auth');
 const adminManagement = require('../controllers/admin-management');
+const security = require('../controllers/security');
 
 const router = express.Router();
 router.post('/auth/login', asyncHandler(auth.login));
+router.post('/auth/request-password-reset', asyncHandler(auth.requestPasswordReset));
+router.post('/auth/reset-password', asyncHandler(auth.resetPassword));
 router.get('/auth/me', authenticate, asyncHandler(auth.me));
 router.post('/auth/change-password', authenticate, asyncHandler(auth.changePassword));
 router.patch('/auth/admin-account', authenticate, allowRoles('admin'), asyncHandler(auth.updateAdminAccount));
+router.get('/security/logs', authenticate, allowRoles('admin'), asyncHandler(security.listLogs));
 router.use('/students', require('./students'));
 router.use('/attendance', require('./attendance'));
 router.use('/', require('./academy'));

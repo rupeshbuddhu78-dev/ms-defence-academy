@@ -10,6 +10,7 @@ import '../../providers/session_provider.dart';
 import '../../widgets/async_state.dart';
 import '../student/extras_pages.dart';
 import 'admin_account_page.dart';
+import 'security_logs_page.dart';
 
 class _BulkQuestionDraft {
   final question = TextEditingController();
@@ -38,7 +39,23 @@ class _ScannerPageState extends State<ScannerPage> {
   String? error;
   String? token;
   Map<String, dynamic>? student;
+  Map<String, dynamic>? currentAttendance;
   bool attendanceMarked = false;
+
+  String _localDate() {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  bool get _inside => currentAttendance?['state'] == 'inside';
+
+  String _entryExitSummary() {
+    if (currentAttendance == null) return 'No entry recorded today';
+    final entry = DateTime.tryParse(currentAttendance!['entryAt']?.toString() ?? '')?.toLocal();
+    final exit = DateTime.tryParse(currentAttendance!['exitAt']?.toString() ?? '')?.toLocal();
+    String fmt(DateTime? value) => value == null ? '—' : DateFormat('hh:mm a').format(value);
+    return 'Entry: ${fmt(entry)}   •   Exit: ${fmt(exit)}';
+  }
 
   String _scanDetails() {
     final profile = student ?? const <String, dynamic>{};
@@ -75,11 +92,14 @@ class _ScannerPageState extends State<ScannerPage> {
       final result = await context
           .read<SessionProvider>()
           .api
-          .post('/attendance/lookup-qr', {'token': value});
+          .post('/attendance/lookup-qr', {'token': value, 'attendanceDate': _localDate()});
       if (!mounted) return;
       setState(() {
         token = value;
         student = Map<String, dynamic>.from(result['profile']);
+        currentAttendance = result['currentAttendance'] == null
+            ? null
+            : Map<String, dynamic>.from(result['currentAttendance']);
       });
       await controller.stop();
     } catch (exception) {
@@ -91,23 +111,35 @@ class _ScannerPageState extends State<ScannerPage> {
 
   Future<void> _markAttendance() async {
     final scannedToken = token;
-    if (scannedToken == null || attendanceMarked) return;
+    if (scannedToken == null || (attendanceMarked && !_inside)) return;
     final now = DateTime.now();
-    final localDate = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final localDate = _localDate();
     setState(() => busy = true);
     try {
-      await context.read<SessionProvider>().api.post(
+      final result = await context.read<SessionProvider>().api.post(
           '/attendance/mark', {
         'token': scannedToken,
         'status': 'present',
+        'action': _inside ? 'exit' : 'entry',
         'attendanceDate': localDate,
         'markedAt': now.toUtc().toIso8601String(),
       });
       if (mounted) {
-        setState(() => attendanceMarked = true);
+        final record = Map<String, dynamic>.from(result['attendance'] ?? {});
+        setState(() {
+          attendanceMarked = true;
+          currentAttendance = {
+            'entryAt': record['entryAt'] ?? record['time'],
+            'exitAt': record['exitAt'],
+            'state': result['action'] == 'exit' ? 'exited' : 'inside',
+          };
+        });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                'Attendance marked for ${student?['name'] ?? 'student'}')));
+            content: Text(result['action'] == 'exit'
+                ? 'Exit recorded for ${student?['name'] ?? 'student'}'
+                : result['action'] == 'already_inside'
+                    ? '${student?['name'] ?? 'Student'} is already inside'
+                    : 'Entry recorded for ${student?['name'] ?? 'student'}')));
       }
     } catch (exception) {
       if (mounted) setState(() => error = exception.toString());
@@ -203,8 +235,13 @@ class _ScannerPageState extends State<ScannerPage> {
                                     style: const TextStyle(
                                         fontSize: 12,
                                         color: AcademyColors.muted)),
+                                const SizedBox(height: 8),
+                                Text(_entryExitSummary(),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: AcademyColors.green)),
                                 const Spacer(),
-                                if (attendanceMarked)
+                                if (attendanceMarked && !_inside)
                                   Container(
                                     width: double.infinity,
                                     padding: const EdgeInsets.all(12),
@@ -219,7 +256,7 @@ class _ScannerPageState extends State<ScannerPage> {
                                         Icon(Icons.check_circle,
                                             color: AcademyColors.green),
                                         SizedBox(width: 8),
-                                        Text('Attendance marked successfully',
+                                        Text('Entry and exit record saved',
                                             style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 color: AcademyColors.green)),
@@ -232,15 +269,16 @@ class _ScannerPageState extends State<ScannerPage> {
                                       child: FilledButton.icon(
                                           onPressed:
                                               busy ? null : _markAttendance,
-                                          icon: const Icon(Icons.check_circle),
+                                          icon: Icon(_inside ? Icons.logout : Icons.login),
                                           label: Text(busy
                                               ? 'Saving…'
-                                              : 'Mark present'))),
+                                              : _inside ? 'Mark exit' : 'Mark entry'))),
                                 TextButton(
                                     onPressed: () async {
                                       setState(() {
                                         student = null;
                                         token = null;
+                                        currentAttendance = null;
                                         error = null;
                                         attendanceMarked = false;
                                       });
@@ -723,6 +761,8 @@ class AdminMorePage extends StatelessWidget {
               Icons.account_balance_wallet_outlined, const FeesPage()),
           _link(context, 'Admin account', Icons.admin_panel_settings_outlined,
               const AdminAccountPage()),
+          _link(context, 'Security logs', Icons.security_outlined,
+              const SecurityLogsPage()),
           Card(
               child: ListTile(
                   leading: const Icon(Icons.logout, color: AcademyColors.green),
