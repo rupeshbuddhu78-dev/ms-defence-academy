@@ -28,6 +28,19 @@ async function nextId() {
   return `MSDA${String(max + 1).padStart(2, '0')}`;
 }
 
+function duplicateKey(error) {
+  return error && (error.code === 11000 || error.codeName === 'DuplicateKey');
+}
+
+async function findStudentUser(application) {
+  const byEmail = await User.findOne({ email: application.email }).select('+passwordHash');
+  const byPhone = application.phone ? await User.findOne({ phone: application.phone }).select('+passwordHash') : null;
+  if (byEmail && byPhone && String(byEmail._id) !== String(byPhone._id)) {
+    throw new HttpError(409, 'This email and phone belong to different accounts');
+  }
+  return byEmail || byPhone;
+}
+
 async function review(req, res) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Application not found');
   const application = await StudentApplication.findById(req.params.id).select('+passwordHash +aadhaarEncrypted');
@@ -46,12 +59,20 @@ async function review(req, res) {
   }
   const batch = await Batch.findOne({ _id: application.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
-  let user = await User.findOne({ $or: [{ email: application.email }, { phone: application.phone }] }).select('+passwordHash');
+  let user = await findStudentUser(application);
   if (user && user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
   if (!user) {
-    user = await User.create({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student' });
+    try {
+      user = await User.create({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student' });
+    } catch (error) {
+      if (!duplicateKey(error)) throw error;
+      user = await findStudentUser(application);
+      if (!user) throw error;
+      if (user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
+    }
   } else {
     user.name = application.name;
+    user.email = application.email;
     user.phone = application.phone;
     user.isActive = true;
     await user.save();
@@ -64,8 +85,18 @@ async function review(req, res) {
     await application.save();
     return res.json({ ok: true, data: { message: 'Application approved; existing student profile was restored', studentId: profile.studentId, profile } });
   }
-  const studentId = await nextId();
-  profile = await StudentProfile.create({ userId: user._id, studentId, batchId: application.batchId, course: application.course || batch.course || '', address: application.address, village: application.village, post: application.post, policeStation: application.policeStation, district: application.district, state: application.state, postalCode: application.postalCode, fatherName: application.fatherName, motherName: application.motherName, parentPhone: application.parentPhone, dateOfBirth: application.dateOfBirth, heightCm: application.heightCm, weightKg: application.weightKg, chestCm: application.chestCm, aadhaarEncrypted: application.aadhaarEncrypted, aadhaarLast4: application.aadhaarLast4, photo: application.photo, photoPublicId: application.photoPublicId, joiningDate: new Date() });
+  let studentId = await nextId();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      profile = await StudentProfile.create({ userId: user._id, studentId, batchId: application.batchId, course: application.course || batch.course || '', address: application.address, village: application.village, post: application.post, policeStation: application.policeStation, district: application.district, state: application.state, postalCode: application.postalCode, fatherName: application.fatherName, motherName: application.motherName, parentPhone: application.parentPhone, dateOfBirth: application.dateOfBirth, heightCm: application.heightCm, weightKg: application.weightKg, chestCm: application.chestCm, aadhaarEncrypted: application.aadhaarEncrypted, aadhaarLast4: application.aadhaarLast4, photo: application.photo, photoPublicId: application.photoPublicId, joiningDate: new Date() });
+      break;
+    } catch (error) {
+      if (!duplicateKey(error) || attempt === 2) throw error;
+      const existingProfile = await StudentProfile.findOne({ userId: user._id });
+      if (existingProfile) { profile = existingProfile; break; }
+      studentId = await nextId();
+    }
+  }
   application.status = 'approved';
   application.reviewedAt = new Date();
   application.reviewedBy = req.user._id;
