@@ -5,8 +5,8 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const cloudinary = require('../services/cloudinary');
 const { HttpError } = require('../middleware/errors');
-
 const respond = (res, data, status = 200) => res.status(status).json({ ok: true, data });
+const videoExtensions = new Set(['.mp4', '.mov', '.m4v', '.avi', '.mkv', '.webm', '.3gp', '.mpeg', '.mpg']);
 
 async function getSettings(_req, res) {
   const settings = await AppSettings.findOneAndUpdate({ key: 'academy' }, {}, { upsert: true, new: true, setDefaultsOnInsert: true });
@@ -43,8 +43,11 @@ async function uploadMedia(req, res) {
   const description = String(req.body.description || '').trim();
   const requestedKind = String(req.body.kind || '').toLowerCase();
   if (title.length < 2) throw new HttpError(400, 'Enter a heading/title');
-  const kind = requestedKind === 'video' || req.file.mimetype.startsWith('video/') ? 'video' : 'file';
-  if (kind === 'video' && !req.file.mimetype.startsWith('video/')) throw new HttpError(415, 'Select a video for the video section');
+  const originalName = String(req.file.originalname || '').toLowerCase();
+  const hasVideoExtension = [...videoExtensions].some(extension => originalName.endsWith(extension));
+  const isVideo = req.file.mimetype.startsWith('video/') || hasVideoExtension;
+  if (requestedKind === 'video' && !isVideo) throw new HttpError(415, 'Select a valid video file');
+  const kind = requestedKind === 'video' || isVideo ? 'video' : 'file';
   const uploaded = await cloudinary.uploadAuto(req.file.buffer, `ms-defence-academy/${kind}`);
   const media = await AcademyMedia.create({ title, description, kind, url: uploaded.url, publicId: uploaded.publicId, resourceType: uploaded.resourceType, format: uploaded.format, mimeType: req.file.mimetype, bytes: req.file.size, originalName: req.file.originalname, createdBy: req.user._id });
   const users = await User.find({ role: 'student', isActive: true }).select('_id').lean();
@@ -52,4 +55,12 @@ async function uploadMedia(req, res) {
   return respond(res, { media, notificationsSent: users.length }, 201);
 }
 
-module.exports = { getSettings, updateBranding, uploadBrandAsset, listMedia, uploadMedia };
+async function deleteMedia(req, res) {
+  const media = await AcademyMedia.findById(req.params.id);
+  if (!media) throw new HttpError(404, 'Media item not found');
+  await AcademyMedia.findByIdAndDelete(media._id);
+  if (media.publicId) await cloudinary.deleteMedia(media.publicId, media.resourceType);
+  return respond(res, { message: 'Media deleted', id: media._id });
+}
+
+module.exports = { getSettings, updateBranding, uploadBrandAsset, listMedia, uploadMedia, deleteMedia };

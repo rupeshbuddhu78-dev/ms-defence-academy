@@ -341,6 +341,43 @@ async function updateStudent(req, res) {
     await User.findByIdAndUpdate(currentUser._id, userUpdate, { runValidators: true });
   }
   await profile.save();
+  if (body.totalFees !== undefined || body.paidAmount !== undefined) {
+    const currentFee = await Fee.findOne({ studentId: profile._id }).sort({ createdAt: -1 });
+    const totalFees = body.totalFees === undefined
+      ? Number(currentFee?.totalFees || 0)
+      : Number(body.totalFees);
+    const paidAmount = body.paidAmount === undefined
+      ? Number(currentFee?.paidAmount || 0)
+      : Number(body.paidAmount);
+    if (!Number.isFinite(totalFees) || totalFees < 0 || !Number.isFinite(paidAmount) || paidAmount < 0) {
+      throw new HttpError(400, 'Total fee and paid amount must be valid non-negative values');
+    }
+    if (paidAmount > totalFees) throw new HttpError(400, 'Paid amount cannot exceed total fee');
+    if (currentFee) {
+      if (totalFees !== Number(currentFee.totalFees) || paidAmount !== Number(currentFee.paidAmount)) {
+        currentFee.adjustments.push({
+          previousTotal: currentFee.totalFees,
+          newTotal: totalFees,
+          previousPaid: currentFee.paidAmount,
+          newPaid: paidAmount,
+          note: 'Updated from student edit',
+          recordedBy: req.user._id,
+        });
+        currentFee.totalFees = totalFees;
+        currentFee.paidAmount = paidAmount;
+        currentFee.status = totalFees === 0 ? 'due' : paidAmount >= totalFees ? 'paid' : paidAmount > 0 ? 'partial' : 'due';
+        await currentFee.save();
+      }
+    } else if (totalFees > 0) {
+      await Fee.create({
+        studentId: profile._id,
+        batchId: profile.batchId,
+        totalFees,
+        paidAmount,
+        status: paidAmount >= totalFees ? 'paid' : paidAmount > 0 ? 'partial' : 'due',
+      });
+    }
+  }
   return getStudent({ ...req, params: { id: profile.id } }, res);
 }
 
@@ -395,7 +432,17 @@ async function uploadStudentPhoto(req, res) {
   if (!profile) throw new HttpError(404, 'Student not found');
   return respond(res, await storePhoto(profile, req.file));
 }
-
+async function deleteStudentPhoto(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Student not found');
+  const profile = await StudentProfile.findById(req.params.id);
+  if (!profile) throw new HttpError(404, 'Student not found');
+  const publicId = profile.photoPublicId;
+  profile.photo = '';
+  profile.photoPublicId = '';
+  await profile.save();
+  if (publicId) await cloudImages.deleteImage(publicId);
+  return respond(res, { photo: '' });
+}
 module.exports = {
   listStudents,
   createStudent,
@@ -406,4 +453,5 @@ module.exports = {
   deleteStudent,
   uploadOwnPhoto,
   uploadStudentPhoto,
+  deleteStudentPhoto,
 };

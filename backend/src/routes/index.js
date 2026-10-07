@@ -32,6 +32,10 @@ router.patch('/content/settings', authenticate, allowRoles('admin'), asyncHandle
 router.post('/content/settings/asset', authenticate, allowRoles('admin'), uploadMedia, asyncHandler(content.uploadBrandAsset));
 router.get('/content/media', authenticate, asyncHandler(content.listMedia));
 router.post('/content/media', authenticate, allowRoles('admin'), uploadMedia, asyncHandler(content.uploadMedia));
+router.delete('/content/media/:id', authenticate, allowRoles('admin'), asyncHandler(content.deleteMedia));
+// Keep compatibility with older APK builds that used kind-specific delete paths.
+router.delete('/content/videos/:id', authenticate, allowRoles('admin'), asyncHandler(content.deleteMedia));
+router.delete('/content/files/:id', authenticate, allowRoles('admin'), asyncHandler(content.deleteMedia));
 router.use('/students', require('./students'));
 router.use('/attendance', require('./attendance'));
 router.use('/', require('./academy'));

@@ -94,4 +94,17 @@ async function deleteImage(publicId) {
   }
 }
 
-module.exports = { isConfigured, uploadImage, uploadAuto, deleteImage, safeProviderFailure };
+async function deleteMedia(publicId, resourceType = 'auto') {
+  if (!publicId || !isConfigured()) return;
+  configure();
+  const resource_type = ['image', 'video', 'raw'].includes(resourceType)
+    ? resourceType
+    : 'image';
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type, invalidate: true });
+  } catch (_) {
+    // Asset deletion is best-effort; the database record remains authoritative.
+  }
+}
+
+module.exports = { isConfigured, uploadImage, uploadAuto, deleteImage, deleteMedia, safeProviderFailure };

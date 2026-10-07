@@ -167,6 +167,44 @@ async function getFees(req,res) {
         { batchId: null, studentId: { $in: members.map(profile => profile._id) } },
       ];
     }
+    const profileFilter = req.query.studentId
+      ? { _id: req.query.studentId }
+      : req.query.batchId
+          ? { batchId: req.query.batchId }
+          : {};
+    const profiles = await StudentProfile.find(profileFilter)
+      .populate('userId', 'name phone')
+      .populate('batchId', 'name')
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    const fees = await Fee.find({ studentId: { $in: profiles.map(profile => profile._id) } })
+      .populate('batchId', 'name')
+      .populate({
+        path: 'studentId',
+        select: 'studentId photo course batchId',
+        populate: [
+          { path: 'userId', select: 'name phone' },
+          { path: 'batchId', select: 'name' },
+        ],
+      })
+      .sort({ createdAt: -1 });
+    const feeStudentIds = new Set(fees.map(fee => String(fee.studentId?._id || fee.studentId)));
+    const zeroRows = profiles
+      .filter(profile => !feeStudentIds.has(String(profile._id)))
+      .map(profile => ({
+        _id: null,
+        studentId: profile,
+        batchId: profile.batchId,
+        totalFees: 0,
+        paidAmount: 0,
+        remainingAmount: 0,
+        status: 'due',
+        payments: [],
+        adjustments: [],
+        noFeeRecord: true,
+      }));
+    return respond(res, [...fees, ...zeroRows]);
   }
   const fees = await Fee.find(filter)
     .populate('batchId', 'name')

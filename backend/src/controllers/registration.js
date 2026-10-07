@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
 const security = require('./security');
 const cloudinary = require('../services/cloudinary');
+const { encryptAadhaar, normalizeAadhaar } = require('../services/personal-data');
 
 function email(value) { const v = String(value || '').trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : ''; }
 function phone(value) { const v = String(value || '').replace(/\D/g, ''); return v.length === 10 ? v : ''; }
@@ -19,6 +20,13 @@ function payload(body) {
   if (!result.batchId) throw new HttpError(400, 'Select a batch');
   delete result.photo;
   for (const key of ['heightCm','weightKg','chestCm']) result[key] = number(body[key]);
+  const aadhaar = normalizeAadhaar(body.aadhaarNumber);
+  if (aadhaar && aadhaar.length !== 12) {
+    throw new HttpError(400, 'Aadhaar number must contain exactly 12 digits');
+  }
+  result.aadhaarEncrypted = aadhaar ? encryptAadhaar(aadhaar) : '';
+  result.aadhaarLast4 = aadhaar ? aadhaar.slice(-4) : '';
+  delete result.aadhaarNumber;
   return result;
 }
 
