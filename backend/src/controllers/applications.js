@@ -12,6 +12,13 @@ async function list(req, res) {
     .select('-passwordHash -aadhaarEncrypted')
     .populate('batchId', 'name course')
     .sort({ createdAt: -1 });
+  // Clean up accounts left by older deployments; pending applications are not users.
+  for (const record of records) {
+    const user = await User.findOne({ role: 'student', $or: [{ email: record.email }, { phone: record.phone }] }).select('_id').lean();
+    if (user && !(await StudentProfile.exists({ userId: user._id }))) {
+      await User.deleteOne({ _id: user._id, role: 'student' });
+    }
+  }
   res.json({ ok: true, data: records });
 }
 

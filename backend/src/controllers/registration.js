@@ -24,7 +24,9 @@ function payload(body) {
 }
 
 async function removeOrphanStudentUsers(data) {
-  const candidates = await User.find({ role: 'student', $or: [{ email: data.email }, { phone: data.phone }] }).select('_id').lean();
+  const digits = String(data.phone || '').replace(/\D/g, '');
+  const phones = [digits, `91${digits}`, `+91${digits}`, `+91 ${digits}`].filter(Boolean);
+  const candidates = await User.find({ role: 'student', $or: [{ email: data.email }, { phone: { $in: phones } }] }).select('_id').lean();
   for (const candidate of candidates) {
     if (!(await StudentProfile.exists({ userId: candidate._id }))) {
       await User.deleteOne({ _id: candidate._id, role: 'student' });
@@ -69,6 +71,8 @@ async function verifyOtp(req, res) {
   if (!batch) throw new HttpError(400, 'Selected batch is no longer active');
   const uploaded = req.file ? await cloudinary.uploadImage(req.file.buffer, 'ms-defence-academy/applications') : null;
   const application = await StudentApplication.create({ ...data, photo: uploaded?.url || '', photoPublicId: uploaded?.publicId || '' });
+  // Hard invariant: a verified-but-pending application must not have a User.
+  await removeOrphanStudentUsers(data);
   await RegistrationOtp.findByIdAndDelete(record._id);
   const admins = await User.find({ role: 'admin', isActive: true }).select('_id').lean();
   if (admins.length) await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title: 'New student approval request', message: `${data.name} submitted a verified student application.`, type: 'system', data: { applicationId: application._id } })), { ordered: false });
