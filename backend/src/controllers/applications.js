@@ -7,6 +7,8 @@ const Batch = require('../models/Batch');
 const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
 
+const approvalLocks = new Set();
+
 async function list(req, res) {
   const records = await StudentApplication.find({ status: 'pending' })
     .select('-passwordHash -aadhaarEncrypted')
@@ -89,6 +91,10 @@ async function review(req, res) {
     await application.save();
     return res.json({ ok: true, data: { message: 'Application rejected' } });
   }
+  const lockId = String(application._id);
+  if (approvalLocks.has(lockId)) throw new HttpError(409, 'This application approval is already in progress');
+  approvalLocks.add(lockId);
+  try {
   const batch = await Batch.findOne({ _id: application.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
   let user = await getOrCreateStudentUser(application);
@@ -133,6 +139,9 @@ async function review(req, res) {
   await application.save();
   await Notification.create({ userId: user._id, title: 'Student account approved', message: 'Your account has been approved. You can now log in.', type: 'system', data: { studentId } });
   res.json({ ok: true, data: { message: 'Application approved and student account created', studentId, profile } });
+  } finally {
+    approvalLocks.delete(lockId);
+  }
 }
 
 async function resubmit(req, res) {

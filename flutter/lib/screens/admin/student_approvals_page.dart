@@ -11,11 +11,13 @@ class StudentApprovalsPage extends StatefulWidget {
 
 class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
   late Future<dynamic> future;
+  final Set<String> _processing = <String>{};
   @override void initState() { super.initState(); future = _load(); }
   Future<dynamic> _load() => context.read<SessionProvider>().api.get('/admin/applications');
   void reload() => setState(() => future = _load());
 
   Future<void> review(String id, String action) async {
+    if (_processing.contains(id)) return;
     String reason = '';
     if (action == 'reject') {
       final controller = TextEditingController();
@@ -23,12 +25,15 @@ class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
       controller.dispose();
       if (reason.length < 3) return;
     }
+    setState(() => _processing.add(id));
     try {
       await context.read<SessionProvider>().api.post('/admin/applications/$id/review', {'action': action, if (reason.isNotEmpty) 'reason': reason});
       reload();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(action == 'approve' ? 'Student approved and added to Students' : 'Application rejected')));
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _processing.remove(id));
     }
   }
 
@@ -83,9 +88,9 @@ class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
           child: Column(children: [
             Row(children: [
-              Expanded(child: FilledButton.icon(style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)), onPressed: () => review(id, 'approve'), icon: const Icon(Icons.check, size: 18), label: const Text('Approve', style: TextStyle(fontSize: 12)))),
+              Expanded(child: FilledButton.icon(style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)), onPressed: _processing.contains(id) ? null : () => review(id, 'approve'), icon: const Icon(Icons.check, size: 18), label: const Text('Approve', style: TextStyle(fontSize: 12)))),
               const SizedBox(width: 8),
-              Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)), onPressed: () => review(id, 'reject'), icon: const Icon(Icons.close, color: Colors.red, size: 18), label: const Text('Reject', style: TextStyle(color: Colors.red, fontSize: 12)))),
+              Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)), onPressed: _processing.contains(id) ? null : () => review(id, 'reject'), icon: const Icon(Icons.close, color: Colors.red, size: 18), label: const Text('Reject', style: TextStyle(color: Colors.red, fontSize: 12)))),
             ]),
             const SizedBox(height: 7),
             SizedBox(width: double.infinity, child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 9)), onPressed: () => deleteApplication(id, value(a['name'])), icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18), label: const Text('Delete application', style: TextStyle(color: Colors.red, fontSize: 12)))),
