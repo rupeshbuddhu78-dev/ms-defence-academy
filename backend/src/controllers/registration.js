@@ -24,6 +24,8 @@ function payload(body) {
 
 async function requestOtp(req, res) {
   const data = payload(req.body || {});
+  data.passwordHash = await User.hashPassword(data.password);
+  delete data.password;
   const batch = await Batch.findOne({ _id: data.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
   if (await User.exists({ email: data.email })) throw new HttpError(409, 'An account already uses this email');
