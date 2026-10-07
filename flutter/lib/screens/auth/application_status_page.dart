@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/session_provider.dart';
@@ -9,6 +10,10 @@ class ApplicationStatusPage extends StatelessWidget {
   String _value(dynamic value) => value == null || value.toString().isEmpty
       ? 'Not provided'
       : value.toString();
+  String _date(dynamic value) {
+    final parsed = DateTime.tryParse(value?.toString() ?? '');
+    return parsed == null ? 'Not provided' : DateFormat('dd MMM yyyy').format(parsed.toLocal());
+  }
 
   Future<void> _edit(BuildContext context) async {
     final session = context.read<SessionProvider>();
@@ -88,7 +93,7 @@ class ApplicationStatusPage extends StatelessWidget {
       'Father name': app['fatherName'],
       'Mother name': app['motherName'],
       'Parent phone': app['parentPhone'],
-      'Date of birth': app['dateOfBirth'],
+      'Date of birth': _date(app['dateOfBirth']),
       'Address': app['address'],
       'Village': app['village'],
       'Post': app['post'],

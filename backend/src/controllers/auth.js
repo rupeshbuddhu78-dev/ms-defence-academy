@@ -22,9 +22,9 @@ async function login(req, res) {
   const clauses = [{ email: identifier.toLowerCase() }];
   if (phone) clauses.push({ phone });
   const user = await User.findOne({ $or: clauses }).select('+passwordHash');
-  if (!user) {
+  if (!user || (user.role === 'student' && !(await StudentProfile.exists({ userId: user._id })))) {
     const application = await StudentApplication.findOne({
-      email: identifier.toLowerCase(),
+      $or: [{ email: identifier.toLowerCase() }, ...(phone ? [{ phone }] : [])],
       status: { $in: ['pending', 'rejected'] },
     }).select('+passwordHash').populate('batchId', 'name course');
     if (application && await bcrypt.compare(password, application.passwordHash)) {
