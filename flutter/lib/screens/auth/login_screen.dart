@@ -38,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final branding = context.watch<SessionProvider>().settings;
     final appName = branding['name']?.toString() ?? 'MS Defence Academy';
     final logoUrl = branding['logoUrl']?.toString() ?? '';
+    final backgroundUrl = branding['backgroundUrl']?.toString() ?? '';
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -55,6 +56,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: BoxDecoration(
                       color: AcademyColors.forest,
                       borderRadius: BorderRadius.circular(28),
+                      image: DecorationImage(
+                        image: backgroundUrl.startsWith('http')
+                            ? NetworkImage(backgroundUrl)
+                            : const AssetImage('assets/academy_hero_mobile.jpg')
+                                as ImageProvider,
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(
+                            AcademyColors.forest.withValues(alpha: .48),
+                            BlendMode.darken),
+                      ),
                     ),
                     child: Stack(
                       children: [
