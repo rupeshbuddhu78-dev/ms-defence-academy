@@ -124,7 +124,11 @@ async function review(req, res) {
   let studentId = await nextId();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      profile = await StudentProfile.create({ userId: user._id, studentId, batchId: application.batchId, course: application.course || batch.course || '', address: application.address, village: application.village, post: application.post, policeStation: application.policeStation, district: application.district, state: application.state, postalCode: application.postalCode, fatherName: application.fatherName, motherName: application.motherName, parentPhone: application.parentPhone, dateOfBirth: application.dateOfBirth, heightCm: application.heightCm, weightKg: application.weightKg, chestCm: application.chestCm, aadhaarEncrypted: application.aadhaarEncrypted, aadhaarLast4: application.aadhaarLast4, photo: application.photo, photoPublicId: application.photoPublicId, joiningDate: new Date() });
+      profile = await StudentProfile.findOneAndUpdate(
+        { userId: user._id },
+        { $set: { batchId: application.batchId, course: application.course || batch.course || '', address: application.address, village: application.village, post: application.post, policeStation: application.policeStation, district: application.district, state: application.state, postalCode: application.postalCode, fatherName: application.fatherName, motherName: application.motherName, parentPhone: application.parentPhone, dateOfBirth: application.dateOfBirth, heightCm: application.heightCm, weightKg: application.weightKg, chestCm: application.chestCm, aadhaarEncrypted: application.aadhaarEncrypted, aadhaarLast4: application.aadhaarLast4, photo: application.photo, photoPublicId: application.photoPublicId }, $setOnInsert: { studentId, joiningDate: new Date() } },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      );
       break;
     } catch (error) {
       if (!duplicateKey(error) || attempt === 2) throw error;
