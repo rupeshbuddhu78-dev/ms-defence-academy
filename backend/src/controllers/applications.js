@@ -97,9 +97,14 @@ async function review(req, res) {
   try {
   const batch = await Batch.findOne({ _id: application.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
-  let user = await getOrCreateStudentUser(application);
+  let user = await findStudentUser(application);
+  let newUser = false;
+  if (!user) {
+    user = new User({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student', isActive: true });
+    newUser = true;
+  }
   if (user && user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
-  if (user) {
+  if (!newUser) {
     try {
       user.name = application.name;
       user.phone = application.phone;
@@ -135,6 +140,15 @@ async function review(req, res) {
       const existingProfile = await StudentProfile.findOne({ userId: user._id });
       if (existingProfile) { profile = existingProfile; break; }
       studentId = await nextId();
+    }
+  }
+  if (newUser) {
+    try {
+      await user.save();
+    } catch (error) {
+      await StudentProfile.deleteOne({ _id: profile._id });
+      if (duplicateKey(error)) throw new HttpError(409, 'Student account already exists; refresh applications and approve once');
+      throw error;
     }
   }
   application.status = 'approved';
