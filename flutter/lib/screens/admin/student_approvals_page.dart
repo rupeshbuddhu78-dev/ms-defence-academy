@@ -32,6 +32,28 @@ class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
     }
   }
 
+  Future<void> deleteApplication(String id, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete application?'),
+        content: Text('Delete $name\'s pending application? The student will need to fill the registration form again and request approval.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Delete')),
+        ],
+      ),
+    ) ?? false;
+    if (!confirmed) return;
+    try {
+      await context.read<SessionProvider>().api.delete('/admin/applications/$id');
+      reload();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application deleted. Student must register again.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   String value(dynamic item) => item == null || item.toString().isEmpty ? '—' : item.toString();
   String date(dynamic item) {
     final parsed = DateTime.tryParse(item?.toString() ?? '');
@@ -59,7 +81,13 @@ class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          child: Row(children: [Expanded(child: FilledButton.icon(onPressed: () => review(id, 'approve'), icon: const Icon(Icons.check), label: const Text('Approve'))), const SizedBox(width: 8), Expanded(child: OutlinedButton.icon(onPressed: () => review(id, 'reject'), icon: const Icon(Icons.close, color: Colors.red), label: const Text('Reject', style: TextStyle(color: Colors.red))))]),
+          child: Row(children: [
+            Expanded(child: FilledButton.icon(onPressed: () => review(id, 'approve'), icon: const Icon(Icons.check), label: const Text('Approve'))),
+            const SizedBox(width: 6),
+            Expanded(child: OutlinedButton.icon(onPressed: () => review(id, 'reject'), icon: const Icon(Icons.close, color: Colors.red), label: const Text('Reject', style: TextStyle(color: Colors.red)))),
+            const SizedBox(width: 6),
+            Expanded(child: OutlinedButton.icon(onPressed: () => deleteApplication(id, value(a['name'])), icon: const Icon(Icons.delete_outline, color: Colors.red), label: const Text('Delete', style: TextStyle(color: Colors.red)))),
+          ]),
         ),
       ]),
     );

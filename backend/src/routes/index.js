@@ -26,6 +26,7 @@ router.patch('/auth/admin-account', authenticate, allowRoles('admin'), asyncHand
 router.get('/security/logs', authenticate, allowRoles('admin'), asyncHandler(security.listLogs));
 router.get('/admin/applications', authenticate, allowRoles('admin'), asyncHandler(applications.list));
 router.post('/admin/applications/:id/review', authenticate, allowRoles('admin'), asyncHandler(applications.review));
+router.delete('/admin/applications/:id', authenticate, allowRoles('admin'), asyncHandler(applications.remove));
 router.get('/content/settings', asyncHandler(content.getSettings));
 router.patch('/content/settings', authenticate, allowRoles('admin'), asyncHandler(content.updateBranding));
 router.post('/content/settings/asset', authenticate, allowRoles('admin'), uploadMedia, asyncHandler(content.uploadBrandAsset));

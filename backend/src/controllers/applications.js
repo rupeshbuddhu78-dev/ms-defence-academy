@@ -15,6 +15,13 @@ async function list(req, res) {
   res.json({ ok: true, data: records });
 }
 
+async function remove(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Application not found');
+  const application = await StudentApplication.findOneAndDelete({ _id: req.params.id, status: 'pending' });
+  if (!application) throw new HttpError(404, 'Pending application not found');
+  res.json({ ok: true, data: { message: 'Application deleted. The student must submit a new application.' } });
+}
+
 async function nextId() {
   const rows = await StudentProfile.find({ studentId: /^MSDA\d+$/i }).select('studentId').lean();
   const max = rows.reduce((m, x) => Math.max(m, Number(String(x.studentId).replace(/^MSDA/i)) || 0), 0);
@@ -97,4 +104,4 @@ async function resubmit(req, res) {
   res.json({ ok: true, data: { message: 'Application resubmitted for admin review', application: safe } });
 }
 
-module.exports = { list, review, resubmit };
+module.exports = { list, review, remove, resubmit };
