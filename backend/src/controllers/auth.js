@@ -27,7 +27,7 @@ async function login(req, res) {
   }
   await security.record(req, 'login_success', { userId: user._id, role: user.role, email: user.email });
   const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    expiresIn: process.env.JWT_EXPIRES_IN || '30d',
     issuer: 'ms-defence-academy',
   });
   const profile = user.role === 'student'

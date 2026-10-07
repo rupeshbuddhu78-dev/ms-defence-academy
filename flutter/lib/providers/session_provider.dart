@@ -9,6 +9,7 @@ class SessionProvider extends ChangeNotifier {
   Map<String, dynamic>? profile;
   Map<String, dynamic> settings = {};
   bool busy = false;
+  bool restoring = true;
   String? error;
   bool get isLoggedIn => user != null;
   bool get isAdmin => user?['role'] == 'admin';
@@ -23,25 +24,32 @@ class SessionProvider extends ChangeNotifier {
       // Some Android devices can reject an old/corrupt secure-storage entry.
       // Start signed out instead of crashing during app launch.
       await _clearStoredTokenSafely();
+      restoring = false;
       notifyListeners();
       return;
     }
-    if (saved == null) return;
+    if (saved == null) {
+      restoring = false;
+      notifyListeners();
+      return;
+    }
     api.token = saved;
-    try {
-      final data = await api.get('/auth/me');
-      user = Map<String, dynamic>.from(data['user']);
-      profile = data['profile'] == null
-          ? null
-          : Map<String, dynamic>.from(data['profile']);
-    } catch (error) {
-      final invalidSession = error is ApiException &&
-          (error.statusCode == 401 || error.statusCode == 403);
-      if (invalidSession) {
-        await _clearStoredTokenSafely();
-        api.token = null;
+    for (var attempt = 0; attempt < 3 && user == null; attempt++) {
+      try {
+        final data = await api.get('/auth/me');
+        user = Map<String, dynamic>.from(data['user']);
+        profile = data['profile'] == null ? null : Map<String, dynamic>.from(data['profile']);
+      } catch (error) {
+        final invalidSession = error is ApiException && (error.statusCode == 401 || error.statusCode == 403);
+        if (invalidSession) {
+          await _clearStoredTokenSafely();
+          api.token = null;
+          break;
+        }
+        if (attempt < 2) await Future<void>.delayed(Duration(seconds: attempt + 1));
       }
     }
+    restoring = false;
     notifyListeners();
   }
 

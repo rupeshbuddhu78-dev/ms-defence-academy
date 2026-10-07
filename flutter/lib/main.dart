@@ -22,7 +22,9 @@ class AcademyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         home: Consumer<SessionProvider>(
-            builder: (context, session, _) => !session.isLoggedIn
+            builder: (context, session, _) => session.restoring
+                ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+                : !session.isLoggedIn
                 ? const LoginScreen()
                 : session.mustChangePassword
                     ? const ChangePasswordScreen()

@@ -7,6 +7,7 @@ import '../../widgets/async_state.dart';
 import '../admin/admin_pages.dart';
 import '../admin/attendance_admin_page.dart' as attendance_admin;
 import '../admin/student_management_page.dart' as student_management;
+import '../admin/student_approvals_page.dart';
 import 'extras_pages.dart';
 import 'student_pages.dart';
 import '../shared/content_pages.dart';
@@ -100,6 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _WideAction('Create Test', 'Build and manage tests', Icons.description_outlined, const Color(0xFFB68A08), () => _open(const TestManagementPage())),
       const SizedBox(height: 10),
       _WideAction('Schedule Training', 'Plan and manage training sessions', Icons.calendar_month_rounded, const Color(0xFF15558A), () => _open(const TrainingAdminPage())),
+      const SizedBox(height: 10),
+      _WideAction('Student Approvals', 'Review verified account requests', Icons.how_to_reg_outlined, const Color(0xFFB68A08), () => _open(const StudentApprovalsPage())),
     ];
   }
 

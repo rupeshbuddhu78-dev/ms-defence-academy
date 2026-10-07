@@ -12,6 +12,7 @@ import '../student/extras_pages.dart';
 import 'admin_account_page.dart';
 import 'security_logs_page.dart';
 import '../shared/content_pages.dart';
+import 'student_approvals_page.dart';
 
 class _BulkQuestionDraft {
   final question = TextEditingController();
@@ -766,6 +767,8 @@ class AdminMorePage extends StatelessWidget {
               const SecurityLogsPage()),
           _link(context, 'Branding, files & videos', Icons.cloud_upload_outlined,
               const AdminContentPage()),
+          _link(context, 'Student approvals', Icons.how_to_reg_outlined,
+              const StudentApprovalsPage()),
           Card(
               child: ListTile(
                   leading: const Icon(Icons.logout, color: AcademyColors.green),
