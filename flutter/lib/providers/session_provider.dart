@@ -11,6 +11,7 @@ class SessionProvider extends ChangeNotifier {
   Map<String, dynamic>? application;
   String? applicationPassword;
   Map<String, dynamic> settings = {};
+  int studentProfilesVersion = 0;
   bool busy = false;
   bool restoring = true;
   String? error;
@@ -18,6 +19,11 @@ class SessionProvider extends ChangeNotifier {
   bool get hasPendingApplication => application != null && user == null;
   bool get isAdmin => user?['role'] == 'admin';
   bool get mustChangePassword => user?['mustChangePassword'] == true;
+
+  void notifyStudentProfilesChanged() {
+    studentProfilesVersion++;
+    notifyListeners();
+  }
 
   void setPendingApplication(Map<String, dynamic> value, String password) {
     application = value;

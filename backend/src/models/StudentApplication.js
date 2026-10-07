@@ -15,7 +15,7 @@ const schema = new mongoose.Schema({
   heightCm: { type: Number, default: null }, weightKg: { type: Number, default: null }, chestCm: { type: Number, default: null },
   aadhaarEncrypted: { type: String, default: '' }, aadhaarLast4: { type: String, default: '' },
   photo: { type: String, default: '' }, photoPublicId: { type: String, default: '' },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
+  status: { type: String, enum: ['pending', 'approving', 'approved', 'rejected'], default: 'pending', index: true },
   reviewedAt: { type: Date, default: null }, reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   rejectionReason: { type: String, default: '' },
 }, { timestamps: true });

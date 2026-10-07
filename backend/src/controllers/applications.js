@@ -10,17 +10,16 @@ const { HttpError } = require('../middleware/errors');
 const approvalLocks = new Set();
 
 async function list(req, res) {
+  // Recover approval attempts interrupted by a process restart. Approval writes
+  // are idempotent, so a stale claim can safely return to the pending queue.
+  await StudentApplication.updateMany(
+    { status: 'approving', updatedAt: { $lt: new Date(Date.now() - 2 * 60 * 1000) } },
+    { $set: { status: 'pending', reviewedAt: null, reviewedBy: null } },
+  );
   const records = await StudentApplication.find({ status: 'pending' })
     .select('-passwordHash -aadhaarEncrypted')
     .populate('batchId', 'name course')
     .sort({ createdAt: -1 });
-  // Clean up accounts left by older deployments; pending applications are not users.
-  for (const record of records) {
-    const user = await User.findOne({ role: 'student', $or: [{ email: record.email }, { phone: record.phone }] }).select('_id').lean();
-    if (user && !(await StudentProfile.exists({ userId: user._id }))) {
-      await User.deleteOne({ _id: user._id, role: 'student' });
-    }
-  }
   res.json({ ok: true, data: records });
 }
 
@@ -77,34 +76,38 @@ async function getOrCreateStudentUser(application) {
 
 async function review(req, res) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Application not found');
-  const application = await StudentApplication.findById(req.params.id).select('+passwordHash +aadhaarEncrypted');
+  let application = await StudentApplication.findById(req.params.id).select('+passwordHash +aadhaarEncrypted');
   if (!application || application.status !== 'pending') throw new HttpError(404, 'Pending application not found');
   const action = String(req.body.action || '').toLowerCase();
   if (!['approve', 'reject'].includes(action)) throw new HttpError(400, 'Action must be approve or reject');
   if (action === 'reject') {
     const reason = String(req.body.reason || '').trim();
     if (reason.length < 3) throw new HttpError(400, 'Write the reason for rejection');
-    application.status = 'rejected';
-    application.rejectionReason = reason.slice(0, 500);
-    application.reviewedAt = new Date();
-    application.reviewedBy = req.user._id;
-    await application.save();
+    const rejected = await StudentApplication.findOneAndUpdate(
+      { _id: application._id, status: 'pending' },
+      { $set: { status: 'rejected', rejectionReason: reason.slice(0, 500), reviewedAt: new Date(), reviewedBy: req.user._id } },
+      { new: true },
+    );
+    if (!rejected) throw new HttpError(409, 'This application has already been reviewed');
     return res.json({ ok: true, data: { message: 'Application rejected' } });
   }
   const lockId = String(application._id);
   if (approvalLocks.has(lockId)) throw new HttpError(409, 'This application approval is already in progress');
   approvalLocks.add(lockId);
+  let claimedApplication = false;
   try {
+  application = await StudentApplication.findOneAndUpdate(
+    { _id: application._id, status: 'pending' },
+    { $set: { status: 'approving', reviewedAt: new Date(), reviewedBy: req.user._id } },
+    { new: true },
+  ).select('+passwordHash +aadhaarEncrypted');
+  if (!application) throw new HttpError(409, 'This application has already been reviewed or is being approved');
+  claimedApplication = true;
   const batch = await Batch.findOne({ _id: application.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
-  let user = await findStudentUser(application);
-  let newUser = false;
-  if (!user) {
-    user = new User({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student', isActive: true });
-    newUser = true;
-  }
+  let user = await getOrCreateStudentUser(application);
   if (user && user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
-  if (!newUser) {
+  if (user) {
     try {
       user.name = application.name;
       user.phone = application.phone;
@@ -142,21 +145,20 @@ async function review(req, res) {
       studentId = await nextId();
     }
   }
-  if (newUser) {
-    try {
-      await user.save();
-    } catch (error) {
-      await StudentProfile.deleteOne({ _id: profile._id });
-      if (duplicateKey(error)) throw new HttpError(409, 'Student account already exists; refresh applications and approve once');
-      throw error;
-    }
-  }
   application.status = 'approved';
   application.reviewedAt = new Date();
   application.reviewedBy = req.user._id;
   await application.save();
   await Notification.create({ userId: user._id, title: 'Student account approved', message: 'Your account has been approved. You can now log in.', type: 'system', data: { studentId } });
   res.json({ ok: true, data: { message: 'Application approved and student account created', studentId, profile } });
+  } catch (error) {
+    if (claimedApplication) {
+      await StudentApplication.updateOne(
+        { _id: application._id, status: 'approving' },
+        { $set: { status: 'pending', reviewedAt: null, reviewedBy: null } },
+      );
+    }
+    throw error;
   } finally {
     approvalLocks.delete(lockId);
   }

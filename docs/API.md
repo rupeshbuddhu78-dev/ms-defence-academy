@@ -7,8 +7,17 @@ Base URL: `https://ms-defence-academy-backend.onrender.com/api` (local default: 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
 | POST | `/auth/login` | Public | Login with email or student phone and password; returns JWT, user and student profile if applicable |
+| GET | `/auth/register/batches` | Public | List active batches available during registration |
+| POST | `/auth/register/request-otp` | Public | Send email OTP for a student application; does not create a User account |
+| POST | `/auth/register/verify-otp` | Public | Verify OTP and submit a pending application; does not create a User account |
+| GET | `/admin/applications` | Admin | List verified applications awaiting review |
+| POST | `/admin/applications/:id/review` | Admin | Approve/reject an application; approval provisions the student User and profile |
+| DELETE | `/admin/applications/:id` | Admin | Delete a pending application |
+| PATCH | `/auth/application/:id/resubmit` | Public | Correct and resubmit a rejected application using its email and password |
 | GET | `/auth/me` | Any signed-in user | Current user and profile |
 | POST | `/auth/change-password` | Signed-in account requiring rotation | Set a new password after a student's first phone/password login |
+
+Student self-registration stores a verified application only. A student login account and `StudentProfile` are provisioned by the admin approval action; review claims are guarded against concurrent admins and stale interrupted claims are made retryable. The admin application list is read-only with respect to student accounts.
 
 ## Students and enrollment
 

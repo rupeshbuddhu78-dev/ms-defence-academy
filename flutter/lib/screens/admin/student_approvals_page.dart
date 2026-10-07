@@ -27,7 +27,9 @@ class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
     }
     setState(() => _processing.add(id));
     try {
-      await context.read<SessionProvider>().api.post('/admin/applications/$id/review', {'action': action, if (reason.isNotEmpty) 'reason': reason});
+      final session = context.read<SessionProvider>();
+      await session.api.post('/admin/applications/$id/review', {'action': action, if (reason.isNotEmpty) 'reason': reason});
+      if (action == 'approve') session.notifyStudentProfilesChanged();
       reload();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(action == 'approve' ? 'Student approved and added to Students' : 'Application rejected')));
     } catch (error) {

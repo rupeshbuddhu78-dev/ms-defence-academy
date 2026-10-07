@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const RegistrationOtp = require('../models/RegistrationOtp');
 const StudentApplication = require('../models/StudentApplication');
 const User = require('../models/User');
-const StudentProfile = require('../models/StudentProfile');
 const Batch = require('../models/Batch');
 const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
@@ -23,29 +22,17 @@ function payload(body) {
   return result;
 }
 
-async function removeOrphanStudentUsers(data) {
-  const digits = String(data.phone || '').replace(/\D/g, '');
-  const phones = [digits, `91${digits}`, `+91${digits}`, `+91 ${digits}`].filter(Boolean);
-  const candidates = await User.find({ role: 'student', $or: [{ email: data.email }, { phone: { $in: phones } }] }).select('_id').lean();
-  for (const candidate of candidates) {
-    if (!(await StudentProfile.exists({ userId: candidate._id }))) {
-      await User.deleteOne({ _id: candidate._id, role: 'student' });
-    }
-  }
-}
-
 async function requestOtp(req, res) {
   const data = payload(req.body || {});
   data.passwordHash = await User.hashPassword(data.password);
   delete data.password;
   const batch = await Batch.findOne({ _id: data.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
-  // Registration must never create a User. Remove only incomplete student
-  // records left by older approval attempts; real profiles are untouched.
-  await removeOrphanStudentUsers(data);
+  // Registration must never create or delete a User. Accounts are provisioned
+  // only by the admin approval workflow.
   if (await User.exists({ email: data.email })) throw new HttpError(409, 'An account already uses this email');
   if (await User.exists({ phone: data.phone })) throw new HttpError(409, 'An account already uses this phone');
-  if (await StudentApplication.exists({ email: data.email, status: 'pending' })) throw new HttpError(409, 'A pending application already exists for this email');
+  if (await StudentApplication.exists({ email: data.email, status: { $in: ['pending', 'approving'] } })) throw new HttpError(409, 'A pending application already exists for this email');
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   await RegistrationOtp.deleteMany({ email: data.email });
   const record = await RegistrationOtp.create({ email: data.email, codeHash: await User.hashPassword(otp), payload: data, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
@@ -71,8 +58,6 @@ async function verifyOtp(req, res) {
   if (!batch) throw new HttpError(400, 'Selected batch is no longer active');
   const uploaded = req.file ? await cloudinary.uploadImage(req.file.buffer, 'ms-defence-academy/applications') : null;
   const application = await StudentApplication.create({ ...data, photo: uploaded?.url || '', photoPublicId: uploaded?.publicId || '' });
-  // Hard invariant: a verified-but-pending application must not have a User.
-  await removeOrphanStudentUsers(data);
   await RegistrationOtp.findByIdAndDelete(record._id);
   const admins = await User.find({ role: 'admin', isActive: true }).select('_id').lean();
   if (admins.length) await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title: 'New student approval request', message: `${data.name} submitted a verified student application.`, type: 'system', data: { applicationId: application._id } })), { ordered: false });

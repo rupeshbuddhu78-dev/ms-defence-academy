@@ -18,17 +18,28 @@ class StudentDirectoryPage extends StatefulWidget {
 
 class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
   final search = TextEditingController();
+  late final SessionProvider _session;
   late Future<dynamic> future;
   late Future<dynamic> batchesFuture;
   String? selectedBatchId;
   bool _uploadingPhoto = false;
   double _photoUploadProgress = 0;
+  int _lastStudentProfilesVersion = 0;
 
   @override
   void initState() {
     super.initState();
-    batchesFuture = context.read<SessionProvider>().api.get('/batches');
+    _session = context.read<SessionProvider>();
+    _lastStudentProfilesVersion = _session.studentProfilesVersion;
+    _session.addListener(_handleStudentProfilesChanged);
+    batchesFuture = _session.api.get('/batches');
     future = _load();
+  }
+
+  void _handleStudentProfilesChanged() {
+    if (!mounted || _lastStudentProfilesVersion == _session.studentProfilesVersion) return;
+    _lastStudentProfilesVersion = _session.studentProfilesVersion;
+    setState(() => future = _load());
   }
 
   Future<dynamic> _load() {
@@ -51,6 +62,7 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
 
   @override
   void dispose() {
+    _session.removeListener(_handleStudentProfilesChanged);
     search.dispose();
     super.dispose();
   }

@@ -66,6 +66,18 @@ test('student onboarding endpoint is admin-authenticated', async () => {
   assert.equal(response.body.ok, false);
 });
 
+test('student application review remains admin-authenticated', async () => {
+  const id = '507f1f77bcf86cd799439011';
+  const response = await request(app).post(`/api/admin/applications/${id}/review`).send({ action: 'approve' });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.ok, false);
+});
+
+test('student applications support a recoverable approval claim state', () => {
+  const StudentApplication = require('../src/models/StudentApplication');
+  assert.deepEqual(StudentApplication.schema.path('status').enumValues, ['pending', 'approving', 'approved', 'rejected']);
+});
+
 test('exam authoring endpoint rejects unauthenticated callers', async () => {
   const response = await request(app).post('/api/tests').send({ title: 'Unauthorized test' });
   assert.equal(response.status, 401);
