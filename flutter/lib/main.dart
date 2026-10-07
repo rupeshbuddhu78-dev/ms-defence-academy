@@ -4,6 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'providers/session_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/change_password_screen.dart';
+import 'screens/auth/application_status_page.dart';
 import 'screens/shared/app_shell.dart';
 import 'services/notification_service.dart';
 
@@ -24,6 +25,8 @@ class AcademyApp extends StatelessWidget {
         home: Consumer<SessionProvider>(
             builder: (context, session, _) => session.restoring
                 ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+                : session.hasPendingApplication
+                ? const ApplicationStatusPage()
                 : !session.isLoggedIn
                 ? const LoginScreen()
                 : session.mustChangePassword

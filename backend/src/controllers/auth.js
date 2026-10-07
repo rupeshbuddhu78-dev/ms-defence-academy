@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
+const StudentApplication = require('../models/StudentApplication');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
 const { HttpError } = require('../middleware/errors');
 const security = require('./security');
@@ -21,6 +22,18 @@ async function login(req, res) {
   const clauses = [{ email: identifier.toLowerCase() }];
   if (phone) clauses.push({ phone });
   const user = await User.findOne({ $or: clauses }).select('+passwordHash');
+  if (!user) {
+    const application = await StudentApplication.findOne({
+      email: identifier.toLowerCase(),
+      status: { $in: ['pending', 'rejected'] },
+    }).select('+passwordHash').populate('batchId', 'name course');
+    if (application && await bcrypt.compare(password, application.passwordHash)) {
+      const safe = application.toObject();
+      delete safe.passwordHash;
+      await security.record(req, 'application_login', { email: application.email, details: application.status });
+      return res.json({ ok: true, data: { pendingApplication: true, application: safe } });
+    }
+  }
   if (!user || !user.isActive || !(await user.comparePassword(password))) {
     await security.record(req, 'login_failed', { email: identifier.toLowerCase(), details: 'Invalid credentials' });
     throw new HttpError(401, 'Phone/email or password is incorrect');

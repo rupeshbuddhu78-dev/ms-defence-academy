@@ -15,6 +15,7 @@ class FeesManagementPage extends StatefulWidget {
 
 class _FeesManagementPageState extends State<FeesManagementPage> {
   late Future<dynamic> future;
+  late Future<dynamic> summaryFuture;
   late Future<dynamic> batchesFuture;
   String? selectedBatchId;
 
@@ -23,14 +24,22 @@ class _FeesManagementPageState extends State<FeesManagementPage> {
     super.initState();
     batchesFuture = context.read<SessionProvider>().api.get('/batches');
     future = _loadFees();
+    summaryFuture = _loadSummary();
   }
 
   Future<dynamic> _loadFees() => context.read<SessionProvider>().api.get(
         '/fees',
         query: selectedBatchId == null ? null : {'batchId': selectedBatchId!},
       );
+  Future<dynamic> _loadSummary() => context.read<SessionProvider>().api.get(
+        '/fees/summary',
+        query: selectedBatchId == null ? null : {'batchId': selectedBatchId!},
+      );
 
-  void reload() => setState(() => future = _loadFees());
+  void reload() => setState(() {
+        future = _loadFees();
+        summaryFuture = _loadSummary();
+      });
 
   Future<void> addFee() async {
     final api = context.read<SessionProvider>().api;
@@ -563,11 +572,30 @@ class _FeesManagementPageState extends State<FeesManagementPage> {
                     setState(() {
                       selectedBatchId = value == 'all' ? null : value;
                       future = _loadFees();
+                      summaryFuture = _loadSummary();
                     });
                   },
                 );
               },
             ),
+          ),
+        if (admin)
+          FutureBuilder<dynamic>(
+            future: summaryFuture,
+            builder: (context, snapshot) {
+              final summary = snapshot.data is Map
+                  ? Map<String, dynamic>.from(snapshot.data)
+                  : <String, dynamic>{};
+              String money(dynamic value) => '₹${value ?? 0}';
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                child: Row(children: [
+                  Expanded(child: _summaryCard('Total income', money(summary['totalIncome']), AcademyColors.green, Icons.trending_up)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _summaryCard('Total due', money(summary['totalDue']), Colors.red.shade700, Icons.pending_actions)),
+                ]),
+              );
+            },
           ),
         Expanded(
           child: FutureBuilder<dynamic>(
@@ -659,4 +687,18 @@ class _FeesManagementPageState extends State<FeesManagementPage> {
       ]),
     );
   }
+
+  Widget _summaryCard(String title, String value, Color color, IconData icon) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontSize: 12, color: AcademyColors.muted)),
+              Text(value, style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: color)),
+            ])),
+          ]),
+        ),
+      );
 }

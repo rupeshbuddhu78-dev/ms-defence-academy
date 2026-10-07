@@ -7,11 +7,14 @@ class SessionProvider extends ChangeNotifier {
   static final FlutterSecureStorage _storage = FlutterSecureStorage();
   Map<String, dynamic>? user;
   Map<String, dynamic>? profile;
+  Map<String, dynamic>? application;
+  String? applicationPassword;
   Map<String, dynamic> settings = {};
   bool busy = false;
   bool restoring = true;
   String? error;
   bool get isLoggedIn => user != null;
+  bool get hasPendingApplication => application != null && user == null;
   bool get isAdmin => user?['role'] == 'admin';
   bool get mustChangePassword => user?['mustChangePassword'] == true;
 
@@ -83,6 +86,11 @@ class SessionProvider extends ChangeNotifier {
     try {
       final data = await api.post(
           '/auth/login', {'identifier': identifier, 'password': password});
+      if (data['pendingApplication'] == true) {
+        application = Map<String, dynamic>.from(data['application']);
+        applicationPassword = password;
+        return true;
+      }
       api.token = data['token'];
       user = Map<String, dynamic>.from(data['user']);
       profile = data['profile'] == null
@@ -111,6 +119,27 @@ class SessionProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       error = e is ApiException ? e.message : 'Unable to change password';
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> resubmitApplication(Map<String, dynamic> values) async {
+    if (application == null || applicationPassword == null) return false;
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      final data = await api.patch(
+        '/auth/application/${application!['_id']}/resubmit',
+        {...values, 'email': application!['email'], 'password': applicationPassword},
+      );
+      application = Map<String, dynamic>.from(data['application']);
+      return true;
+    } catch (e) {
+      error = e is ApiException ? e.message : 'Unable to resubmit application';
       return false;
     } finally {
       busy = false;
@@ -179,6 +208,8 @@ class SessionProvider extends ChangeNotifier {
     api.token = null;
     user = null;
     profile = null;
+    application = null;
+    applicationPassword = null;
     notifyListeners();
   }
 }
