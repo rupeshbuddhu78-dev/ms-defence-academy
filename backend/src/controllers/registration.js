@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const RegistrationOtp = require('../models/RegistrationOtp');
 const StudentApplication = require('../models/StudentApplication');
 const User = require('../models/User');
+const StudentProfile = require('../models/StudentProfile');
 const Batch = require('../models/Batch');
 const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
@@ -22,12 +23,24 @@ function payload(body) {
   return result;
 }
 
+async function removeOrphanStudentUsers(data) {
+  const candidates = await User.find({ role: 'student', $or: [{ email: data.email }, { phone: data.phone }] }).select('_id').lean();
+  for (const candidate of candidates) {
+    if (!(await StudentProfile.exists({ userId: candidate._id }))) {
+      await User.deleteOne({ _id: candidate._id, role: 'student' });
+    }
+  }
+}
+
 async function requestOtp(req, res) {
   const data = payload(req.body || {});
   data.passwordHash = await User.hashPassword(data.password);
   delete data.password;
   const batch = await Batch.findOne({ _id: data.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
+  // Registration must never create a User. Remove only incomplete student
+  // records left by older approval attempts; real profiles are untouched.
+  await removeOrphanStudentUsers(data);
   if (await User.exists({ email: data.email })) throw new HttpError(409, 'An account already uses this email');
   if (await User.exists({ phone: data.phone })) throw new HttpError(409, 'An account already uses this phone');
   if (await StudentApplication.exists({ email: data.email, status: 'pending' })) throw new HttpError(409, 'A pending application already exists for this email');
