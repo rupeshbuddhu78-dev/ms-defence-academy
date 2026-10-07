@@ -32,9 +32,14 @@ function duplicateKey(error) {
   return error && (error.code === 11000 || error.codeName === 'DuplicateKey');
 }
 
+function phoneVariants(phone) {
+  const value = String(phone || '').replace(/\D/g, '');
+  return [value, `91${value}`, `+91${value}`, `+91 ${value}`].filter(Boolean);
+}
+
 async function findStudentUser(application) {
   const byEmail = await User.findOne({ email: application.email }).select('+passwordHash');
-  const byPhone = application.phone ? await User.findOne({ phone: application.phone }).select('+passwordHash') : null;
+  const byPhone = application.phone ? await User.findOne({ phone: { $in: phoneVariants(application.phone) } }).select('+passwordHash') : null;
   if (byEmail && byPhone && String(byEmail._id) !== String(byPhone._id)) {
     throw new HttpError(409, 'This email and phone belong to different accounts');
   }
@@ -71,11 +76,19 @@ async function review(req, res) {
       if (user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
     }
   } else {
-    user.name = application.name;
-    user.email = application.email;
-    user.phone = application.phone;
-    user.isActive = true;
-    await user.save();
+    try {
+      user.name = application.name;
+      user.email = application.email;
+      user.phone = application.phone;
+      user.isActive = true;
+      await user.save();
+    } catch (error) {
+      if (!duplicateKey(error)) throw error;
+      user = await findStudentUser(application);
+      if (!user || user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
+      user.isActive = true;
+      await user.save();
+    }
   }
   let profile = await StudentProfile.findOne({ userId: user._id });
   if (profile) {
