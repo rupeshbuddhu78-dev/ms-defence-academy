@@ -37,12 +37,28 @@ async function review(req, res) {
     await application.save();
     return res.json({ ok: true, data: { message: 'Application rejected' } });
   }
-  if (await User.exists({ $or: [{ email: application.email }, { phone: application.phone }] })) throw new HttpError(409, 'An account already exists with this email or phone');
   const batch = await Batch.findOne({ _id: application.batchId, status: 'active' });
   if (!batch) throw new HttpError(400, 'Selected batch is not active');
-  const user = await User.create({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student' });
+  let user = await User.findOne({ $or: [{ email: application.email }, { phone: application.phone }] }).select('+passwordHash');
+  if (user && user.role !== 'student') throw new HttpError(409, 'An admin account already uses this email or phone');
+  if (!user) {
+    user = await User.create({ name: application.name, email: application.email, phone: application.phone, passwordHash: application.passwordHash, mustChangePassword: false, role: 'student' });
+  } else {
+    user.name = application.name;
+    user.phone = application.phone;
+    user.isActive = true;
+    await user.save();
+  }
+  let profile = await StudentProfile.findOne({ userId: user._id });
+  if (profile) {
+    application.status = 'approved';
+    application.reviewedAt = new Date();
+    application.reviewedBy = req.user._id;
+    await application.save();
+    return res.json({ ok: true, data: { message: 'Application approved; existing student profile was restored', studentId: profile.studentId, profile } });
+  }
   const studentId = await nextId();
-  const profile = await StudentProfile.create({ userId: user._id, studentId, batchId: application.batchId, course: application.course || batch.course || '', address: application.address, village: application.village, post: application.post, policeStation: application.policeStation, district: application.district, state: application.state, postalCode: application.postalCode, fatherName: application.fatherName, motherName: application.motherName, parentPhone: application.parentPhone, dateOfBirth: application.dateOfBirth, heightCm: application.heightCm, weightKg: application.weightKg, chestCm: application.chestCm, aadhaarEncrypted: application.aadhaarEncrypted, aadhaarLast4: application.aadhaarLast4, photo: application.photo, photoPublicId: application.photoPublicId, joiningDate: new Date() });
+  profile = await StudentProfile.create({ userId: user._id, studentId, batchId: application.batchId, course: application.course || batch.course || '', address: application.address, village: application.village, post: application.post, policeStation: application.policeStation, district: application.district, state: application.state, postalCode: application.postalCode, fatherName: application.fatherName, motherName: application.motherName, parentPhone: application.parentPhone, dateOfBirth: application.dateOfBirth, heightCm: application.heightCm, weightKg: application.weightKg, chestCm: application.chestCm, aadhaarEncrypted: application.aadhaarEncrypted, aadhaarLast4: application.aadhaarLast4, photo: application.photo, photoPublicId: application.photoPublicId, joiningDate: new Date() });
   application.status = 'approved';
   application.reviewedAt = new Date();
   application.reviewedBy = req.user._id;
