@@ -1,11 +1,38 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/session_provider.dart';
 
-class ApplicationStatusPage extends StatelessWidget {
+class ApplicationStatusPage extends StatefulWidget {
   const ApplicationStatusPage({super.key});
+  @override State<ApplicationStatusPage> createState() => _ApplicationStatusPageState();
+}
+
+class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
+  Timer? _approvalTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _approvalTimer = Timer.periodic(const Duration(seconds: 12), (_) => _checkApproval());
+  }
+
+  Future<void> _checkApproval() async {
+    final session = context.read<SessionProvider>();
+    if (session.user != null || session.applicationPassword == null || session.application == null) return;
+    final email = session.application!['email']?.toString() ?? '';
+    if (email.isEmpty || session.busy) return;
+    await session.login(email, session.applicationPassword!);
+    if (session.user != null) _approvalTimer?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _approvalTimer?.cancel();
+    super.dispose();
+  }
 
   String _value(dynamic value) => value == null || value.toString().isEmpty
       ? 'Not provided'

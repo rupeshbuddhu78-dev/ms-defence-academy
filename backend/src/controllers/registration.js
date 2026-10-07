@@ -59,7 +59,10 @@ async function verifyOtp(req, res) {
   await RegistrationOtp.findByIdAndDelete(record._id);
   const admins = await User.find({ role: 'admin', isActive: true }).select('_id').lean();
   if (admins.length) await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title: 'New student approval request', message: `${data.name} submitted a verified student application.`, type: 'system', data: { applicationId: application._id } })), { ordered: false });
-  res.status(201).json({ ok: true, data: { message: 'Email verified. Your application is pending admin approval.', applicationId: application._id } });
+  const safeApplication = application.toObject();
+  delete safeApplication.passwordHash;
+  delete safeApplication.aadhaarEncrypted;
+  res.status(201).json({ ok: true, data: { message: 'Email verified. Your application is pending admin approval.', applicationId: application._id, application: safeApplication } });
 }
 
 module.exports = { requestOtp, verifyOtp, listBatches };

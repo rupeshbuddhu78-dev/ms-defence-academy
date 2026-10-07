@@ -18,6 +18,12 @@ class SessionProvider extends ChangeNotifier {
   bool get isAdmin => user?['role'] == 'admin';
   bool get mustChangePassword => user?['mustChangePassword'] == true;
 
+  void setPendingApplication(Map<String, dynamic> value, String password) {
+    application = value;
+    applicationPassword = password;
+    notifyListeners();
+  }
+
   Future<void> restore() async {
     await loadSettings();
     String? saved;

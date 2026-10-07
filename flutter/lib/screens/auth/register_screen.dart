@@ -88,21 +88,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             timeout: const Duration(minutes: 5),
           );
       if (mounted) {
-        await showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Application submitted'),
-            content: Text(result['message']?.toString() ??
-                'Email verified. Wait for admin approval.'),
-            actions: [
-              FilledButton(
-                onPressed: () =>
-                    Navigator.popUntil(context, (route) => route.isFirst),
-                child: const Text('Done'),
-              ),
-            ],
-          ),
-        );
+        final session = context.read<SessionProvider>();
+        session.setPendingApplication(Map<String, dynamic>.from(result['application'] ?? {}), fields['password']!.text);
+        Navigator.popUntil(context, (route) => route.isFirst);
       }
     } catch (error) {
       if (mounted) {

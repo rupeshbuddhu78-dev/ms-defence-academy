@@ -81,12 +81,14 @@ class _StudentApprovalsPageState extends State<StudentApprovalsPage> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          child: Row(children: [
-            Expanded(child: FilledButton.icon(onPressed: () => review(id, 'approve'), icon: const Icon(Icons.check), label: const Text('Approve'))),
-            const SizedBox(width: 6),
-            Expanded(child: OutlinedButton.icon(onPressed: () => review(id, 'reject'), icon: const Icon(Icons.close, color: Colors.red), label: const Text('Reject', style: TextStyle(color: Colors.red)))),
-            const SizedBox(width: 6),
-            Expanded(child: OutlinedButton.icon(onPressed: () => deleteApplication(id, value(a['name'])), icon: const Icon(Icons.delete_outline, color: Colors.red), label: const Text('Delete', style: TextStyle(color: Colors.red)))),
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: FilledButton.icon(style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)), onPressed: () => review(id, 'approve'), icon: const Icon(Icons.check, size: 18), label: const Text('Approve', style: TextStyle(fontSize: 12)))),
+              const SizedBox(width: 8),
+              Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)), onPressed: () => review(id, 'reject'), icon: const Icon(Icons.close, color: Colors.red, size: 18), label: const Text('Reject', style: TextStyle(color: Colors.red, fontSize: 12)))),
+            ]),
+            const SizedBox(height: 7),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 9)), onPressed: () => deleteApplication(id, value(a['name'])), icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18), label: const Text('Delete application', style: TextStyle(color: Colors.red, fontSize: 12)))),
           ]),
         ),
       ]),
