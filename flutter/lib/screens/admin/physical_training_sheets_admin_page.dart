@@ -5,15 +5,32 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/session_provider.dart';
 import '../../widgets/async_state.dart';
 
-Map<String, dynamic> _pairedEvent(String id, String label, String valueLabel) =>
+Map<String, dynamic> _singleValueEvent(
+        String id, String label, String valueHint) =>
     {
       'id': id,
       'label': label,
       'columns': <Map<String, String>>[
-        {'key': '${id}_value', 'label': label, 'type': 'measurement'},
-        {'key': '${id}_marks', 'label': 'अंक', 'type': 'marks'},
+        {'key': id, 'label': label, 'type': 'measurement'},
       ],
-      'valueHint': valueLabel,
+      'valueHint': valueHint,
+    };
+
+Map<String, dynamic> _runningEvent(String id, String label) => {
+      'id': id,
+      'label': '$label (दूरी + समय)',
+      'columns': <Map<String, String>>[
+        {
+          'key': '${id}_distance_km',
+          'label': '$label दूरी (KM)',
+          'type': 'measurement',
+        },
+        {
+          'key': '${id}_time',
+          'label': '$label का समय',
+          'type': 'measurement',
+        },
+      ],
     };
 
 Map<String, dynamic> _passEvent(String id, String label) => {
@@ -40,31 +57,31 @@ const _testTemplates = <Map<String, String>>[
 List<Map<String, dynamic>> _eventsFor(String template) {
   if (template == 'army_agniveer') {
     return [
-      _pairedEvent('run_1600', '1.6 KM दौड़', 'mm:ss / seconds'),
-      _pairedEvent('pull_ups', 'Pull-Ups', 'reps'),
+      _runningEvent('run_1600', 'दौड़'),
+      _singleValueEvent('pull_ups', 'Pull-Ups', 'reps'),
       _passEvent('ditch_9ft', '9 फीट Ditch'),
       _passEvent('zigzag_balance', 'Zig-Zag Balance'),
-      _pairedEvent('long_jump', 'Long Jump', 'cm'),
-      _pairedEvent('high_jump', 'High Jump', 'cm'),
-      _pairedEvent('push_ups', 'Push-Ups', 'reps'),
+      _singleValueEvent('long_jump', 'Long Jump', 'cm / metres'),
+      _singleValueEvent('high_jump', 'High Jump', 'cm / metres'),
+      _singleValueEvent('push_ups', 'Push-Ups', 'reps'),
     ];
   }
   if (['bhg', 'bihar_police', 'police_si'].contains(template)) {
     return [
-      _pairedEvent('run_time', 'दौड़ का टाइम', 'mm:ss / seconds'),
-      _pairedEvent('shot_put', 'गोला फेंक', 'cm / metres'),
-      _pairedEvent('high_jump', 'हाई जंप', 'cm / metres'),
-      _pairedEvent('long_jump', 'लॉन्ग जंप', 'cm / metres'),
+      _runningEvent('run', 'दौड़'),
+      _singleValueEvent('shot_put', 'गोला फेंक', 'cm / metres'),
+      _singleValueEvent('high_jump', 'हाई जंप', 'cm / metres'),
+      _singleValueEvent('long_jump', 'लॉन्ग जंप', 'cm / metres'),
       _passEvent('ditch_9ft', '9 फीट Ditch (optional)'),
       _passEvent('zigzag_balance', 'Zig-Zag Balance (optional)'),
     ];
   }
   return [
-    _pairedEvent('run_1600', '1.6 KM दौड़', 'mm:ss / seconds'),
-    _pairedEvent('pull_ups', 'Pull-Ups', 'reps'),
-    _pairedEvent('shot_put', 'Shot Put / गोला फेंक', 'cm / metres'),
-    _pairedEvent('high_jump', 'High Jump', 'cm / metres'),
-    _pairedEvent('long_jump', 'Long Jump', 'cm / metres'),
+    _runningEvent('run', 'दौड़'),
+    _singleValueEvent('pull_ups', 'Pull-Ups', 'reps'),
+    _singleValueEvent('shot_put', 'Shot Put / गोला फेंक', 'cm / metres'),
+    _singleValueEvent('high_jump', 'High Jump', 'cm / metres'),
+    _singleValueEvent('long_jump', 'Long Jump', 'cm / metres'),
     _passEvent('ditch_9ft', '9 फीट Ditch'),
     _passEvent('zigzag_balance', 'Zig-Zag Balance'),
   ];
@@ -296,7 +313,8 @@ class _PhysicalTrainingSheetsAdminPageState
                   },
                 ),
                 const Divider(),
-                const Text('Switch on only the events you want on this sheet.'),
+                const Text(
+                    'Switch on only the events you want. Event-wise marks are not entered; one overall Total Marks field is added for each student.'),
                 ...groups.map((group) => CheckboxListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
@@ -320,7 +338,8 @@ class _PhysicalTrainingSheetsAdminPageState
                     if (name == null) return;
                     final key = 'custom_${customGroups.length + 1}';
                     updateDialog(() {
-                      customGroups.add(_pairedEvent(key, name, 'manual value'));
+                      customGroups
+                          .add(_singleValueEvent(key, name, 'Enter a result'));
                       enabled.add(key);
                     });
                   },
@@ -665,7 +684,14 @@ class _PhysicalTrainingSheetEditorPageState
                   itemBuilder: (context, index) {
                     final row = Map<String, dynamic>.from(rows[index] as Map);
                     final studentId = _studentId(row);
-                    final total = row['totalMarks'] ?? 0;
+                    final rowValues = row['values'] is Map
+                        ? Map<String, dynamic>.from(row['values'] as Map)
+                        : <String, dynamic>{};
+                    final total = rowValues['total_marks'] ??
+                        (columns.any((column) =>
+                                column is Map && column['key'] == 'total_marks')
+                            ? '—'
+                            : row['totalMarks'] ?? 0);
                     return Card(
                       child: ExpansionTile(
                         leading: CircleAvatar(
@@ -673,7 +699,7 @@ class _PhysicalTrainingSheetEditorPageState
                           child: Text('${index + 1}'),
                         ),
                         title: Text(_studentName(row)),
-                        subtitle: Text('Current total: $total'),
+                        subtitle: Text('Overall total marks: $total'),
                         childrenPadding:
                             const EdgeInsets.fromLTRB(16, 0, 16, 14),
                         children: columns.map((rawColumn) {
@@ -703,19 +729,30 @@ class _PhysicalTrainingSheetEditorPageState
                                   controller.text = value ?? '',
                             );
                           }
+                          final isDistance = key.endsWith('_distance_km');
+                          final isRunningTime = key.endsWith('_time');
+                          final isOverallMarks =
+                              column['type'] == 'marks' || key == 'total_marks';
+                          final hint = isOverallMarks
+                              ? 'Enter total marks once for this student'
+                              : isDistance
+                                  ? 'Enter distance in KM, e.g. 1.6'
+                                  : isRunningTime
+                                      ? 'Enter time, e.g. 5:30 or 330 sec'
+                                      : column['type'] == 'measurement'
+                                          ? 'Enter measurement / result'
+                                          : '';
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: TextField(
                               controller: controller,
-                              keyboardType: column['type'] == 'marks'
+                              keyboardType: isOverallMarks || isDistance
                                   ? const TextInputType.numberWithOptions(
                                       decimal: true)
                                   : TextInputType.text,
                               decoration: InputDecoration(
                                 labelText: column['label']?.toString(),
-                                hintText: column['type'] == 'marks'
-                                    ? 'Enter marks'
-                                    : 'Enter measurement / time',
+                                hintText: hint,
                               ),
                             ),
                           );

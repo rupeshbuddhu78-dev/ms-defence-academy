@@ -178,17 +178,26 @@ test('batch physical sheet schema stores enabled columns and one student row wit
   }
 });
 
-test('batch sheet values validate per event and total only numeric marks', () => {
-  const { normalizeColumns, normalizeRowValues } = require('../src/controllers/physical-training-sheets');
-  const columns = normalizeColumns([
-    { key: 'run', label: '1.6 KM Run', type: 'measurement' },
-    { key: 'run_marks', label: 'Run Marks', type: 'marks' },
+test('batch sheet has distance/time measurements and one overall Total Marks field', () => {
+  const { createSheetColumns, normalizeRowValues } = require('../src/controllers/physical-training-sheets');
+  const columns = createSheetColumns([
+    { key: 'run_distance_km', label: 'दौड़ दूरी (KM)', type: 'measurement' },
+    { key: 'run_time', label: 'दौड़ का समय', type: 'measurement' },
     { key: 'ditch', label: '9 feet ditch', type: 'passfail' },
   ]);
-  const row = normalizeRowValues(columns, { run: '5:30', run_marks: '22', ditch: '✓' });
-  assert.deepEqual(row.values, { run: '5:30', run_marks: 22, ditch: 'pass' });
-  assert.equal(row.totalMarks, 22);
-  assert.throws(() => normalizeRowValues(columns, { run_marks: '-1' }), /0 to 1000/);
+  assert.deepEqual(columns.at(-1), { key: 'total_marks', label: 'Total Marks', type: 'marks' });
+  const row = normalizeRowValues(columns, {
+    run_distance_km: '1.6', run_time: '5:30', ditch: '✓', total_marks: '72',
+  });
+  assert.deepEqual(row.values, {
+    run_distance_km: '1.6', run_time: '5:30', ditch: 'pass', total_marks: 72,
+  });
+  assert.equal(row.totalMarks, 72);
+  assert.throws(() => createSheetColumns([
+    { key: 'run', label: 'Run', type: 'measurement' },
+    { key: 'run_marks', label: 'Run Marks', type: 'marks' },
+  ]), /Event marks are not separate/);
+  assert.throws(() => normalizeRowValues(columns, { total_marks: '-1' }), /0 to 1000/);
   assert.throws(() => normalizeRowValues(columns, { ditch: 'maybe' }), /Pass or Fail/);
 });
 

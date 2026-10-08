@@ -66,7 +66,7 @@ Attendance duplicates for the same student/session/date are blocked by a MongoDB
 | POST | `/physical-training-sheets` | Admin | Create a batch-wide marks sheet with selected template and enabled columns; one blank row is created per batch student |
 | PATCH | `/physical-training-sheets/:id/rows` | Admin | Save all/selected student rows; server totals the enabled numeric mark columns |
 
-The individual admin payload includes `batchId`, `studentId`, `testDate`, optional `runTimeSeconds`, `beamReps`, `longJumpCm`, `highJumpCm`, `pushUps`, `sitUps`, `shuttleRunSeconds` and `remarks`. For public marks sheets, `columns` define each enabled measurement, marks, or pass/fail field; `rows` carry the values keyed by column ID. Sheet results are visible to students in the same batch, who see the full table with their own row highlighted. Students cannot query any other batch or write results. The server verifies student-to-batch membership and calculates row totals from columns of type `marks`.
+The individual admin payload includes `batchId`, `studentId`, `testDate`, optional `runTimeSeconds`, `beamReps`, `longJumpCm`, `highJumpCm`, `pushUps`, `sitUps`, `shuttleRunSeconds` and `remarks`. For public marks sheets, `columns` define enabled event measurements or pass/fail fields; a running event records distance in KM and the time taken. The server rejects event-wise marks and appends exactly one `Total Marks` field per student. `rows` carry values keyed by column ID, including that overall score. Sheet results are visible to students in the same batch, who see the full table with their own row highlighted. Students cannot query another batch or write results. The server calculates each row's overall total from its single marks value.
 
 ## Tests and results
 
@@ -111,7 +111,7 @@ No money is charged by this app; payments are manual ledger records only.
 - `Attendance.studentId` references `StudentProfile`; `batchId` and optional `trainingSessionId` reference academy records; `markedBy` references `User`.
 - `TrainingSession.batchId` references `Batch`; `createdBy` references `User`.
 - `PhysicalTrainingResult` references one `StudentProfile`, its `Batch`, and the admin `User` who recorded it.
-- `PhysicalTrainingSheet` references a `Batch`, the admin who created it, its enabled event/marks columns, and one row per student; individual row totals are calculated from the numeric marks columns.
+- `PhysicalTrainingSheet` references a `Batch`, the admin who created it, its enabled event columns plus one overall marks column, and one row per student; the displayed total is calculated from that single overall score.
 - `Test.batchId` references `Batch`; `Question.testId` references `Test`; `TestAttempt` references `Test`, `StudentProfile` and `Question` and stores the one official timed attempt; practice sessions are stateless and never create `TestAttempt` documents.
 - `Notice.batchId` optionally targets a batch; `Notification.userId` references the recipient `User`.
 - `Fee.studentId` references `StudentProfile`; each payment and fee correction records its admin user, and corrections retain the prior ledger values.

@@ -6,6 +6,7 @@ const { HttpError } = require('../middleware/errors');
 
 const respond = (res, data, status = 200) => res.status(status).json({ ok: true, data });
 const MAX_ROWS = 500;
+const MAX_COLUMNS = 24;
 const allowedTypes = new Set(['measurement', 'marks', 'passfail']);
 
 function normalizeColumns(columns) {
@@ -62,6 +63,17 @@ function normalizeRowValues(columns, rawValues = {}) {
   return { values, totalMarks: Math.round(totalMarks * 100) / 100 };
 }
 
+function createSheetColumns(input) {
+  const columns = normalizeColumns(input);
+  if (columns.some(column => column.type === 'marks' || column.key === 'total_marks')) {
+    throw new HttpError(400, 'Event marks are not separate; each student gets one overall Total Marks field');
+  }
+  if (columns.length >= MAX_COLUMNS) {
+    throw new HttpError(400, `Select at most ${MAX_COLUMNS - 1} physical test columns; one overall marks column is added automatically`);
+  }
+  return [...columns, { key: 'total_marks', label: 'Total Marks', type: 'marks' }];
+}
+
 const populate = [
   { path: 'batchId', select: 'name course' },
   { path: 'createdBy', select: 'name' },
@@ -100,7 +112,7 @@ async function createSheet(req, res) {
   if (!mongoose.isValidObjectId(batchId)) throw new HttpError(400, 'Select a valid batch');
   if (!title || title.length > 100) throw new HttpError(400, 'Sheet title is required and must be 100 characters or fewer');
   if (!template || template.length > 60) throw new HttpError(400, 'Select a physical test template');
-  const columns = normalizeColumns(body.columns);
+  const columns = createSheetColumns(body.columns);
   const testDate = body.testDate ? new Date(body.testDate) : new Date();
   if (Number.isNaN(testDate.getTime())) throw new HttpError(400, 'Test date is invalid');
   const batch = await Batch.findOne({ _id: batchId, status: 'active' });
@@ -149,4 +161,4 @@ async function saveRows(req, res) {
   return respond(res, sheet);
 }
 
-module.exports = { listSheets, createSheet, saveRows, normalizeColumns, normalizeRowValues, MAX_ROWS };
+module.exports = { listSheets, createSheet, saveRows, normalizeColumns, normalizeRowValues, createSheetColumns, MAX_ROWS, MAX_COLUMNS };

@@ -98,9 +98,10 @@ class _PhysicalTrainingResultsPageState
               label: Text('${column['label']}: ${_cellValue({
                 'values': values
               }, column)}')),
-      Chip(
-          backgroundColor: AcademyColors.mint,
-          label: Text('Total: ${row['totalMarks'] ?? 0}')),
+      if (!columns.any((column) => column['key'] == 'total_marks'))
+        Chip(
+            backgroundColor: AcademyColors.mint,
+            label: Text('Total: ${row['totalMarks'] ?? 0}')),
     ];
     return Card(
       color: AcademyColors.mint.withValues(alpha: .35),
@@ -124,6 +125,8 @@ class _PhysicalTrainingResultsPageState
     final rawColumns = sheet['columns'] as List<dynamic>? ?? [];
     final columns =
         rawColumns.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+    final hasOverallMarks =
+        columns.any((column) => column['key'] == 'total_marks');
     final rows = sheet['rows'] as List<dynamic>? ?? [];
     final ownRows = rows.where((row) => _isOwnRow(row, session)).toList();
     final batch = sheet['batchId'] is Map
@@ -140,7 +143,7 @@ class _PhysicalTrainingResultsPageState
         ),
         title: Text(sheet['title']?.toString() ?? 'Physical test'),
         subtitle: Text(
-            '$batch • ${date == null ? 'Date unavailable' : DateFormat('dd MMM yyyy').format(date.toLocal())}\n${rows.length} students • ${columns.length} events'),
+            '$batch • ${date == null ? 'Date unavailable' : DateFormat('dd MMM yyyy').format(date.toLocal())}\n${rows.length} students • ${columns.where((column) => column['key'] != 'total_marks').length} events'),
         children: [
           if (ownRows.isNotEmpty) _personalRowSummary(ownRows.first, columns),
           if (rows.isEmpty)
@@ -168,7 +171,8 @@ class _PhysicalTrainingResultsPageState
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
                           ),
                         )),
-                    const DataColumn(label: Text('Total')),
+                    if (!hasOverallMarks)
+                      const DataColumn(label: Text('Total')),
                   ],
                   rows: rows.asMap().entries.map((entry) {
                     final row = entry.value;
@@ -190,9 +194,10 @@ class _PhysicalTrainingResultsPageState
                                       ? FontWeight.w600
                                       : FontWeight.normal),
                             ))),
-                        DataCell(Text('${row['totalMarks'] ?? 0}',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold))),
+                        if (!hasOverallMarks)
+                          DataCell(Text('${row['totalMarks'] ?? 0}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold))),
                       ],
                     );
                   }).toList(),
