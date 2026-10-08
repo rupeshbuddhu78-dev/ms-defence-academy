@@ -39,6 +39,7 @@ router.delete('/content/files/:id', authenticate, allowRoles('admin'), asyncHand
 router.use('/students', require('./students'));
 router.use('/attendance', require('./attendance'));
 router.use('/physical-training-results', require('./physical-training-results'));
+router.use('/physical-training-sheets', require('./physical-training-sheets'));
 router.use('/', require('./academy'));
 router.use('/tests', require('./tests'));
 router.get('/notices', authenticate, asyncHandler(controller.listNotices));

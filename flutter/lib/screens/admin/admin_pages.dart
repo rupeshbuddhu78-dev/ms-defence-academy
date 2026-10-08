@@ -14,6 +14,7 @@ import 'security_logs_page.dart';
 import '../shared/content_pages.dart';
 import 'student_approvals_page.dart';
 import 'physical_training_admin_page.dart';
+import 'physical_training_sheets_admin_page.dart';
 
 class _BulkQuestionDraft {
   final question = TextEditingController();
@@ -763,7 +764,9 @@ class AdminMorePage extends StatelessWidget {
               const BatchManagementPage()),
           _link(context, 'Tests & questions', Icons.quiz_outlined,
               const TestManagementPage()),
-          _link(context, 'Physical training results', Icons.fitness_center,
+          _link(context, 'Batch physical marks sheets', Icons.table_chart,
+              const PhysicalTrainingSheetsAdminPage()),
+          _link(context, 'Individual physical records', Icons.fitness_center,
               const PhysicalTrainingAdminPage()),
           _link(context, 'Training schedule', Icons.fitness_center,
               const TrainingAdminPage()),

@@ -11,7 +11,7 @@ import '../admin/student_approvals_page.dart';
 import 'extras_pages.dart';
 import 'student_pages.dart';
 import 'physical_training_results_page.dart';
-import '../admin/physical_training_admin_page.dart';
+import '../admin/physical_training_sheets_admin_page.dart';
 import '../shared/content_pages.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -142,11 +142,11 @@ class _HomeScreenState extends State<HomeScreen> {
       const _SectionHeading('Quick Access'),
       const SizedBox(height: 12),
       _WideAction(
-          'Add Physical Result',
-          'Choose a batch and student, then enter physical test scores',
-          Icons.fitness_center,
+          'Physical Marks Sheets',
+          'Create a batch table and enter every student’s physical test marks',
+          Icons.table_chart,
           const Color(0xFF15934F),
-          () => _open(const PhysicalTrainingAdminPage())),
+          () => _open(const PhysicalTrainingSheetsAdminPage())),
       const SizedBox(height: 10),
       _WideAction(
           'Scan Attendance',

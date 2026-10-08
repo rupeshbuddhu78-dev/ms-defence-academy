@@ -34,7 +34,7 @@ Student self-registration stores a verified application only. A student login ac
 
 Enrollment requires `name`, a 10-digit Indian `phone`, and an active `batchId`; email is optional. The phone number is the login ID and initial password. Students must set a different password on first sign-in; the API then blocks other protected endpoints until rotation is complete. Optional admission fields include `studentId` (generated as uppercase `MSDA01`, `MSDA02`, … if blank), `fatherName`, `motherName`, `parentPhone`, `dateOfBirth`, `village`, `post`, `policeStation`, `district`, `state`, `postalCode`, `heightCm`, `weightKg`, `chestCm`, `aadhaarNumber`, `course`, `joiningDate`, `totalFees`, and `paidAmount`. Aadhaar is stored only as AES-256-GCM ciphertext; set a random 32-byte hex `AADHAAR_ENCRYPTION_KEY` on the backend. Aadhaar plaintext is returned only on the student's own profile and the admin's individual student-detail endpoint—not in directory lists or session restoration. `paidAmount` cannot exceed `totalFees`.
 
-`DELETE /students/:id` is permanent: it removes the account/profile, fee/payment ledger, attendance, written-test attempts/results, physical-training results and inbox notifications. The app asks for explicit confirmation before calling it. Student photo assets are also removed from Cloudinary after the database transaction.
+`DELETE /students/:id` is permanent: it removes the account/profile, fee/payment ledger, attendance, written-test attempts/results, individual physical-training results, the student's rows in shared physical marks sheets and inbox notifications. The app asks for explicit confirmation before calling it. Student photo assets are also removed from Cloudinary after the database transaction.
 
 Photo uploads accept verified JPG/JPEG, PNG, or WebP up to 12 MB, including JPEG files reported by Android with a generic MIME type. The server uploads photos to Cloudinary and stores the secure URL and asset ID in the student profile. Configure `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in the backend environment; no Cloudinary secrets belong in the app or repository.
 
@@ -62,8 +62,11 @@ Attendance duplicates for the same student/session/date are blocked by a MongoDB
 |---|---|---|---|
 | GET | `/physical-training-results` | Student / Admin | Students receive only their own records; admins may filter by `batchId` or `studentId` |
 | POST | `/physical-training-results` | Admin | Record one student's physical assessment within a selected batch |
+| GET | `/physical-training-sheets` | Student / Admin | Students receive all physical marks sheets for their own batch only; admins may filter by `batchId` |
+| POST | `/physical-training-sheets` | Admin | Create a batch-wide marks sheet with selected template and enabled columns; one blank row is created per batch student |
+| PATCH | `/physical-training-sheets/:id/rows` | Admin | Save all/selected student rows; server totals the enabled numeric mark columns |
 
-The admin payload includes `batchId`, `studentId`, `testDate`, optional `runTimeSeconds`, `beamReps`, `longJumpCm`, `highJumpCm`, `pushUps`, `sitUps`, `shuttleRunSeconds` and `remarks`. The server verifies that the student belongs to the selected active batch and prevents students from writing or querying another student's records.
+The individual admin payload includes `batchId`, `studentId`, `testDate`, optional `runTimeSeconds`, `beamReps`, `longJumpCm`, `highJumpCm`, `pushUps`, `sitUps`, `shuttleRunSeconds` and `remarks`. For public marks sheets, `columns` define each enabled measurement, marks, or pass/fail field; `rows` carry the values keyed by column ID. Sheet results are visible to students in the same batch, who see the full table with their own row highlighted. Students cannot query any other batch or write results. The server verifies student-to-batch membership and calculates row totals from columns of type `marks`.
 
 ## Tests and results
 
@@ -108,6 +111,7 @@ No money is charged by this app; payments are manual ledger records only.
 - `Attendance.studentId` references `StudentProfile`; `batchId` and optional `trainingSessionId` reference academy records; `markedBy` references `User`.
 - `TrainingSession.batchId` references `Batch`; `createdBy` references `User`.
 - `PhysicalTrainingResult` references one `StudentProfile`, its `Batch`, and the admin `User` who recorded it.
+- `PhysicalTrainingSheet` references a `Batch`, the admin who created it, its enabled event/marks columns, and one row per student; individual row totals are calculated from the numeric marks columns.
 - `Test.batchId` references `Batch`; `Question.testId` references `Test`; `TestAttempt` references `Test`, `StudentProfile` and `Question` and stores the one official timed attempt; practice sessions are stateless and never create `TestAttempt` documents.
 - `Notice.batchId` optionally targets a batch; `Notification.userId` references the recipient `User`.
 - `Fee.studentId` references `StudentProfile`; each payment and fee correction records its admin user, and corrections retain the prior ledger values.

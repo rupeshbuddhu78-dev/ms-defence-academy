@@ -162,6 +162,36 @@ test('physical training result schema stores batch, individual metrics, date and
   }
 });
 
+test('batch physical marks sheets are authenticated and write operations are admin-only', async () => {
+  const list = await request(app).get('/api/physical-training-sheets');
+  const create = await request(app).post('/api/physical-training-sheets').send({});
+  const save = await request(app).patch('/api/physical-training-sheets/507f1f77bcf86cd799439011/rows').send({ rows: [] });
+  assert.equal(list.status, 401);
+  assert.equal(create.status, 401);
+  assert.equal(save.status, 401);
+});
+
+test('batch physical sheet schema stores enabled columns and one student row with total marks', () => {
+  const PhysicalTrainingSheet = require('../src/models/PhysicalTrainingSheet');
+  for (const field of ['batchId', 'title', 'template', 'testDate', 'columns', 'rows', 'createdBy']) {
+    assert.ok(PhysicalTrainingSheet.schema.path(field), `missing ${field}`);
+  }
+});
+
+test('batch sheet values validate per event and total only numeric marks', () => {
+  const { normalizeColumns, normalizeRowValues } = require('../src/controllers/physical-training-sheets');
+  const columns = normalizeColumns([
+    { key: 'run', label: '1.6 KM Run', type: 'measurement' },
+    { key: 'run_marks', label: 'Run Marks', type: 'marks' },
+    { key: 'ditch', label: '9 feet ditch', type: 'passfail' },
+  ]);
+  const row = normalizeRowValues(columns, { run: '5:30', run_marks: '22', ditch: '✓' });
+  assert.deepEqual(row.values, { run: '5:30', run_marks: 22, ditch: 'pass' });
+  assert.equal(row.totalMarks, 22);
+  assert.throws(() => normalizeRowValues(columns, { run_marks: '-1' }), /0 to 1000/);
+  assert.throws(() => normalizeRowValues(columns, { ditch: 'maybe' }), /Pass or Fail/);
+});
+
 test('practice unlocks 24 hours after the first official result and official attempt deadline respects schedule duration', () => {
   const { retryAvailableAt, deadlineFor, RETAKE_DELAY_MS } = require('../src/services/exams');
   const submittedAt = new Date('2026-10-08T10:00:00.000Z');

@@ -6,6 +6,7 @@ const Fee = require('../models/Fee');
 const Attendance = require('../models/Attendance');
 const TestAttempt = require('../models/TestAttempt');
 const PhysicalTrainingResult = require('../models/PhysicalTrainingResult');
+const PhysicalTrainingSheet = require('../models/PhysicalTrainingSheet');
 const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
 const cloudImages = require('../services/cloudinary');
@@ -394,6 +395,11 @@ async function deleteStudent(req, res) {
       await Attendance.deleteMany({ studentId: profile._id }).session(session);
       await TestAttempt.deleteMany({ studentId: profile._id }).session(session);
       await PhysicalTrainingResult.deleteMany({ studentId: profile._id }).session(session);
+      await PhysicalTrainingSheet.updateMany(
+        { 'rows.studentId': profile._id },
+        { $pull: { rows: { studentId: profile._id } } },
+        { session },
+      );
       await Fee.deleteMany({ studentId: profile._id }).session(session);
       await Notification.deleteMany({ userId }).session(session);
       await StudentProfile.deleteOne({ _id: profile._id }).session(session);
@@ -403,7 +409,7 @@ async function deleteStudent(req, res) {
     await session.endSession();
   }
   if (publicId) await cloudImages.deleteImage(publicId);
-  return respond(res, { message: 'Student account and associated profile, attendance, test attempts, physical results, fees, and notifications were permanently deleted' });
+  return respond(res, { message: 'Student account and associated profile, attendance, test attempts, physical results, physical marks-sheet rows, fees, and notifications were permanently deleted' });
 }
 
 async function storePhoto(profile, file) {
