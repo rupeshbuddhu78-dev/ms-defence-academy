@@ -30,6 +30,68 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
         query: selectedBatchId == null ? null : {'batchId': selectedBatchId!},
       );
 
+  Future<String?> _batchForNewResult() async {
+    if (selectedBatchId != null) return selectedBatchId;
+    List<dynamic> allBatches;
+    try {
+      allBatches = await batchesFuture as List<dynamic>;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+      return null;
+    }
+    final active = allBatches
+        .where((raw) => raw is Map && raw['status'] == 'active')
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList();
+    if (active.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('There are no active batches available.')));
+      }
+      return null;
+    }
+    var choice = active.first['_id'].toString();
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, updateDialog) => AlertDialog(
+          title: const Text('Choose a batch'),
+          content: DropdownButtonFormField<String>(
+            initialValue: choice,
+            isExpanded: true,
+            items: active
+                .map((batch) => DropdownMenuItem(
+                      value: batch['_id'].toString(),
+                      child: Text(batch['name']?.toString() ?? 'Batch'),
+                    ))
+                .toList(),
+            onChanged: (value) => updateDialog(() {
+              if (value != null) choice = value;
+            }),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, choice),
+                child: const Text('Continue')),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() {
+        selectedBatchId = selected;
+        resultsFuture = _loadResults();
+      });
+    }
+    return selected;
+  }
+
   void reload() => setState(() => resultsFuture = _loadResults());
 
   String _duration(dynamic value) {
@@ -39,13 +101,8 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
   }
 
   Future<void> _addResult() async {
-    final batchId = selectedBatchId;
-    if (batchId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Select a batch first, then add an individual student result.')));
-      return;
-    }
+    final batchId = await _batchForNewResult();
+    if (batchId == null) return;
     List<dynamic> students;
     try {
       students = await context
@@ -126,10 +183,10 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
                     style: TextStyle(color: AcademyColors.muted)),
                 TextFormField(
                     controller: run,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.text,
                     decoration: const InputDecoration(
-                        labelText: 'Running time (mm:ss or seconds)',
+                        labelText: 'Running time',
+                        hintText: '5:30, 330 sec, or 5 min 30 sec',
                         prefixIcon: Icon(Icons.directions_run))),
                 TextFormField(
                     controller: beam,
@@ -139,17 +196,17 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
                         prefixIcon: Icon(Icons.fitness_center))),
                 TextFormField(
                     controller: longJump,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.text,
                     decoration: const InputDecoration(
-                        labelText: 'Long jump (cm)',
+                        labelText: 'Long jump (cm or m)',
+                        hintText: '460 cm or 4.6 m',
                         prefixIcon: Icon(Icons.height))),
                 TextFormField(
                     controller: highJump,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.text,
                     decoration: const InputDecoration(
-                        labelText: 'High jump (cm)',
+                        labelText: 'High jump (cm or m)',
+                        hintText: '120 cm or 1.2 m',
                         prefixIcon: Icon(Icons.north))),
                 TextFormField(
                     controller: pushUps,
@@ -165,10 +222,10 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
                         prefixIcon: Icon(Icons.accessibility_new))),
                 TextFormField(
                     controller: shuttle,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.text,
                     decoration: const InputDecoration(
-                        labelText: 'Shuttle run (mm:ss or seconds)',
+                        labelText: 'Shuttle run',
+                        hintText: '1:20, 80 sec, or 1 min 20 sec',
                         prefixIcon: Icon(Icons.sync))),
                 TextFormField(
                     controller: remarks,
@@ -187,26 +244,60 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
             FilledButton(
                 onPressed: () {
                   if (!(form.currentState?.validate() ?? false)) return;
-                  double? parseDuration(String value) {
-                    final text = value.trim();
+                  double? parseDuration(String raw) {
+                    final text = raw.trim().toLowerCase();
                     if (text.isEmpty) return null;
-                    if (text.contains(':')) {
-                      final parts = text.split(':');
-                      if (parts.length != 2) return -1;
-                      final minutes = double.tryParse(parts[0]);
-                      final seconds = double.tryParse(parts[1]);
-                      if (minutes == null ||
-                          seconds == null ||
-                          seconds >= 60 ||
-                          seconds < 0) return -1;
-                      return minutes * 60 + seconds;
+                    final clock =
+                        RegExp(r'^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$')
+                            .firstMatch(text);
+                    if (clock != null) {
+                      final minutes = double.parse(clock.group(1)!);
+                      final seconds = double.parse(clock.group(2)!);
+                      return seconds < 60 ? minutes * 60 + seconds : double.nan;
                     }
-                    return double.tryParse(text);
+                    final minuteSeconds = RegExp(
+                            r'^(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\s*(\d+(?:\.\d+)?)?\s*(?:s|sec|secs|second|seconds)?$')
+                        .firstMatch(text);
+                    if (minuteSeconds != null) {
+                      return double.parse(minuteSeconds.group(1)!) * 60 +
+                          double.parse(minuteSeconds.group(2) ?? '0');
+                    }
+                    final seconds = RegExp(
+                            r'^(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)?$')
+                        .firstMatch(text);
+                    return seconds == null
+                        ? double.nan
+                        : double.parse(seconds.group(1)!);
+                  }
+
+                  double? parseCentimeters(String raw) {
+                    final text = raw.trim().toLowerCase();
+                    if (text.isEmpty) return null;
+                    final match =
+                        RegExp(r'^(\d+(?:\.\d+)?)\s*(cm|m)?$').firstMatch(text);
+                    if (match == null) return double.nan;
+                    final value = double.parse(match.group(1)!);
+                    return match.group(2) == 'm' ? value * 100 : value;
+                  }
+
+                  int? parseReps(String raw) {
+                    final text = raw.trim().toLowerCase();
+                    if (text.isEmpty) return null;
+                    final match = RegExp(r'^(\d+)\s*(?:reps?|pull-?ups?)?$')
+                        .firstMatch(text);
+                    return match == null ? null : int.parse(match.group(1)!);
                   }
 
                   final runSeconds = parseDuration(run.text);
                   final shuttleSeconds = parseDuration(shuttle.text);
-                  final numbers = <String, String>{
+                  final metrics = <String, num?>{
+                    'beamReps': parseReps(beam.text),
+                    'longJumpCm': parseCentimeters(longJump.text),
+                    'highJumpCm': parseCentimeters(highJump.text),
+                    'pushUps': parseReps(pushUps.text),
+                    'sitUps': parseReps(sitUps.text),
+                  };
+                  final inputs = <String, String>{
                     'beamReps': beam.text,
                     'longJumpCm': longJump.text,
                     'highJumpCm': highJump.text,
@@ -214,30 +305,37 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
                     'sitUps': sitUps.text,
                   };
                   final enteredMetric =
-                      numbers.values.any((value) => value.trim().isNotEmpty) ||
+                      metrics.values.any((value) => value != null) ||
                           runSeconds != null ||
                           shuttleSeconds != null;
-                  final invalid = numbers.entries.any((entry) =>
-                          entry.value.trim().isNotEmpty &&
-                          (num.tryParse(entry.value) == null ||
-                              num.parse(entry.value) < 0)) ||
-                      (run.text.trim().isNotEmpty &&
-                          (runSeconds == null || runSeconds < 0)) ||
-                      (shuttle.text.trim().isNotEmpty &&
-                          (shuttleSeconds == null || shuttleSeconds < 0));
-                  final invalidReps = ['beamReps', 'pushUps', 'sitUps'].any(
-                      (key) =>
-                          numbers[key]!.trim().isNotEmpty &&
-                          num.parse(numbers[key]!) % 1 != 0);
+                  final invalidMetrics = metrics.entries.any((entry) {
+                    if (inputs[entry.key]!.trim().isEmpty) return false;
+                    final value = entry.value;
+                    return value == null ||
+                        !value.isFinite ||
+                        value < 0 ||
+                        value > 1000;
+                  });
+                  bool invalidTime(String raw, double? seconds) {
+                    if (raw.trim().isEmpty) return false;
+                    return seconds == null ||
+                        !seconds.isFinite ||
+                        seconds < 0 ||
+                        seconds > 86400;
+                  }
+
+                  final invalid = invalidMetrics ||
+                      invalidTime(run.text, runSeconds) ||
+                      invalidTime(shuttle.text, shuttleSeconds);
                   if (!enteredMetric) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                         content: Text('Enter at least one physical result.')));
                     return;
                   }
-                  if (invalid || invalidReps) {
+                  if (invalid) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                         content: Text(
-                            'Check the time and measurement values. Use mm:ss or seconds for run times.')));
+                            'Check values. Enter time as mm:ss or seconds, distance in cm or m, and reps as whole numbers.')));
                     return;
                   }
                   Navigator.pop(dialogContext, {
@@ -247,9 +345,8 @@ class _PhysicalTrainingAdminPageState extends State<PhysicalTrainingAdminPage> {
                     if (runSeconds != null) 'runTimeSeconds': runSeconds,
                     if (shuttleSeconds != null)
                       'shuttleRunSeconds': shuttleSeconds,
-                    for (final entry in numbers.entries)
-                      if (entry.value.trim().isNotEmpty)
-                        entry.key: num.parse(entry.value),
+                    for (final entry in metrics.entries)
+                      if (entry.value != null) entry.key: entry.value!,
                     'remarks': remarks.text.trim(),
                   });
                 },

@@ -142,6 +142,13 @@ class _HomeScreenState extends State<HomeScreen> {
       const _SectionHeading('Quick Access'),
       const SizedBox(height: 12),
       _WideAction(
+          'Add Physical Result',
+          'Choose a batch and student, then enter physical test scores',
+          Icons.fitness_center,
+          const Color(0xFF15934F),
+          () => _open(const PhysicalTrainingAdminPage())),
+      const SizedBox(height: 10),
+      _WideAction(
           'Scan Attendance',
           'Mark student attendance quickly',
           Icons.qr_code_scanner_rounded,
@@ -161,13 +168,6 @@ class _HomeScreenState extends State<HomeScreen> {
           Icons.assessment_outlined,
           const Color(0xFF1688C7),
           () => _open(const AdminResultsPage())),
-      const SizedBox(height: 10),
-      _WideAction(
-          'Physical Training Results',
-          'Record and review student physical assessments',
-          Icons.fitness_center,
-          const Color(0xFF15934F),
-          () => _open(const PhysicalTrainingAdminPage())),
       const SizedBox(height: 10),
       _WideAction(
           'Schedule Training',
