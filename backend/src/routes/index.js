@@ -42,6 +42,8 @@ router.use('/', require('./academy'));
 router.use('/tests', require('./tests'));
 router.get('/notices', authenticate, asyncHandler(controller.listNotices));
 router.post('/notices', authenticate, allowRoles('admin'), asyncHandler(controller.createNotice));
+router.patch('/notices/:id', authenticate, allowRoles('admin'), asyncHandler(controller.updateNotice));
+router.delete('/notices/:id', authenticate, allowRoles('admin'), asyncHandler(controller.deleteNotice));
 router.get('/fees', authenticate, asyncHandler(controller.getFees));
 router.get('/fees/summary', authenticate, allowRoles('admin'), asyncHandler(controller.feeSummary));
 router.post('/fees', authenticate, allowRoles('admin'), asyncHandler(controller.createFee));
@@ -50,5 +52,6 @@ router.delete('/fees/:id', authenticate, allowRoles('admin'), asyncHandler(admin
 router.post('/fees/:id/payments', authenticate, allowRoles('admin'), asyncHandler(controller.recordPayment));
 router.get('/notifications', authenticate, asyncHandler(notifications.list));
 router.patch('/notifications/:id/read', authenticate, asyncHandler(notifications.markRead));
+router.delete('/notifications/:id', authenticate, allowRoles('admin'), asyncHandler(notifications.remove));
 
 module.exports = router;

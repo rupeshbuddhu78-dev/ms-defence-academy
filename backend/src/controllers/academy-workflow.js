@@ -371,6 +371,36 @@ async function listNotices(req, res) {
   return respond(res, notices);
 }
 
+async function updateNotice(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Notice not found');
+  const notice = await Notice.findById(req.params.id);
+  if (!notice) throw new HttpError(404, 'Notice not found');
+  const body = req.body || {};
+  const title = String(body.title ?? notice.title).trim();
+  const description = String(body.description ?? notice.description).trim();
+  if (!title || !description) throw new HttpError(400, 'Title and message are required');
+  let batchId = notice.batchId;
+  if (body.batchId !== undefined) batchId = body.batchId ? (await activeBatch(body.batchId))._id : null;
+  notice.title = title;
+  notice.description = description;
+  notice.priority = ['normal', 'important', 'urgent'].includes(body.priority) ? body.priority : notice.priority;
+  notice.batchId = batchId;
+  await notice.save();
+  await Notification.updateMany(
+    { $or: [{ 'data.noticeId': notice._id }, { 'data.noticeId': String(notice._id) }] },
+    { $set: { title: `Academy notice: ${title}`, message: description } },
+  );
+  return respond(res, notice);
+}
+
+async function deleteNotice(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Notice not found');
+  const notice = await Notice.findByIdAndDelete(req.params.id);
+  if (!notice) throw new HttpError(404, 'Notice not found');
+  await Notification.deleteMany({ $or: [{ 'data.noticeId': notice._id }, { 'data.noticeId': String(notice._id) }] });
+  return respond(res, { message: 'Notice and its notifications were deleted' });
+}
+
 async function createFee(req, res) {
   const studentId = String(req.body.studentId || '');
   const batch = await activeBatch(req.body.batchId);
@@ -415,5 +445,7 @@ module.exports = {
   listResults,
   createNotice,
   listNotices,
+  updateNotice,
+  deleteNotice,
   createFee,
 };
