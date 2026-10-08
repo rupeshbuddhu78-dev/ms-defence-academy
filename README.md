@@ -36,7 +36,7 @@ A Flutter Android client and Node.js/Express/MongoDB API for a defence and physi
 - Camera-based attendance scanner → student photo and basic-detail preview → PRESENT confirmation
 - Monthly attendance calendar with marked-day indicators; tapping a student opens their full attendance history and summary
 - Batch-specific test scheduling/editing with the closing time calculated from selected start + duration, bulk MCQ entry (10 by default, up to 100 per save), timed autosave and automatic submission; only the first official result is saved, then 24-hour-delayed unlimited practice runs without storing practice answers/results
-- Batch physical marks sheets for Army, BHG/Home Guard, Bihar Police, BSF, CISF, CRPF, ITBP, Police SI, SSB and SSC-GD; admins toggle optional events, record running distance in KM and its time, then enter one overall total mark per student (not marks for every event). Students see the complete sheet for their own batch with their row highlighted, alongside their individual assessment history.
+- Batch physical marks sheets for Army, BHG/Home Guard, Bihar Police, BSF, CISF, CRPF, ITBP, Police SI, SSB and SSC-GD; admins toggle optional events, record running distance in KM and its time, then enter one overall total mark per student (not marks for every event). Admins can delete a prior sheet after confirmation and create a fresh one. Students see the complete sheet for their own batch with their row highlighted, alongside their individual assessment history.
 - Batch-filtered student directory, fee ledgers, attendance calendars and admin exam results; students receive sequential `MSDA01`, `MSDA02`, … IDs automatically
 - Batch-specific training schedules
 - All-academy or batch-targeted notices and persisted in-app notifications

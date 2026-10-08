@@ -100,6 +100,7 @@ class _PhysicalTrainingSheetsAdminPageState
   late Future<dynamic> batchesFuture;
   late Future<dynamic> sheetsFuture;
   String? selectedBatchId;
+  String? deletingSheetId;
 
   @override
   void initState() {
@@ -424,6 +425,50 @@ class _PhysicalTrainingSheetsAdminPageState
     reload();
   }
 
+  Future<void> _deleteSheet(Map<String, dynamic> sheet) async {
+    final id = sheet['_id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final title = sheet['title']?.toString() ?? 'Physical marks sheet';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete marks sheet?'),
+        content: Text(
+            'Delete "$title" and all student results in this shared sheet? This cannot be undone. Individual physical assessment records will remain.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete permanently'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => deletingSheetId = id);
+    try {
+      await context
+          .read<SessionProvider>()
+          .api
+          .delete('/physical-training-sheets/$id');
+      reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Deleted "$title". Create a new sheet when ready.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => deletingSheetId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
@@ -517,7 +562,25 @@ class _PhysicalTrainingSheetsAdminPageState
                         subtitle: Text(
                             '$batch • ${date == null ? 'Date unavailable' : DateFormat('dd MMM yyyy').format(date.toLocal())}\n${rows.length} students • ${columns.length} active columns'),
                         isThreeLine: true,
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing:
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(
+                            tooltip: 'Delete marks sheet',
+                            onPressed:
+                                deletingSheetId == sheet['_id']?.toString()
+                                    ? null
+                                    : () => _deleteSheet(sheet),
+                            icon: deletingSheetId == sheet['_id']?.toString()
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                                : Icon(Icons.delete_outline,
+                                    color: Colors.red.shade700),
+                          ),
+                          const Icon(Icons.chevron_right),
+                        ]),
                         onTap: () => _openSheet(sheet),
                       ),
                     );

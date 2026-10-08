@@ -166,9 +166,38 @@ test('batch physical marks sheets are authenticated and write operations are adm
   const list = await request(app).get('/api/physical-training-sheets');
   const create = await request(app).post('/api/physical-training-sheets').send({});
   const save = await request(app).patch('/api/physical-training-sheets/507f1f77bcf86cd799439011/rows').send({ rows: [] });
+  const remove = await request(app).delete('/api/physical-training-sheets/507f1f77bcf86cd799439011');
   assert.equal(list.status, 401);
   assert.equal(create.status, 401);
   assert.equal(save.status, 401);
+  assert.equal(remove.status, 401);
+});
+
+test('deleting a batch marks sheet removes only the selected shared sheet', async () => {
+  const PhysicalTrainingSheet = require('../src/models/PhysicalTrainingSheet');
+  const controller = require('../src/controllers/physical-training-sheets');
+  const id = '507f1f77bcf86cd799439011';
+  const previousDelete = PhysicalTrainingSheet.findByIdAndDelete;
+  let deletedId;
+  PhysicalTrainingSheet.findByIdAndDelete = async value => {
+    deletedId = String(value);
+    return { _id: value, title: 'Army physical test' };
+  };
+  const response = {
+    statusCode: 200,
+    status(code) { this.statusCode = code; return this; },
+    json(payload) { this.body = payload; return this; },
+  };
+  try {
+    await controller.deleteSheet({ params: { id } }, response);
+    assert.equal(deletedId, id);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body.data, {
+      deleted: true, id, title: 'Army physical test',
+    });
+  } finally {
+    PhysicalTrainingSheet.findByIdAndDelete = previousDelete;
+  }
 });
 
 test('batch physical sheet schema stores enabled columns and one student row with total marks', () => {

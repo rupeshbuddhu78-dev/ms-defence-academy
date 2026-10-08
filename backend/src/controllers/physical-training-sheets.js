@@ -161,4 +161,12 @@ async function saveRows(req, res) {
   return respond(res, sheet);
 }
 
-module.exports = { listSheets, createSheet, saveRows, normalizeColumns, normalizeRowValues, createSheetColumns, MAX_ROWS, MAX_COLUMNS };
+async function deleteSheet(req, res) {
+  const id = String(req.params.id || '');
+  if (!mongoose.isValidObjectId(id)) throw new HttpError(400, 'Marks sheet ID is invalid');
+  const sheet = await PhysicalTrainingSheet.findByIdAndDelete(id);
+  if (!sheet) throw new HttpError(404, 'Marks sheet not found');
+  return respond(res, { deleted: true, id: String(sheet._id), title: sheet.title });
+}
+
+module.exports = { listSheets, createSheet, saveRows, deleteSheet, normalizeColumns, normalizeRowValues, createSheetColumns, MAX_ROWS, MAX_COLUMNS };
