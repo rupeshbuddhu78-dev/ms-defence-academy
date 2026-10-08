@@ -15,6 +15,8 @@ router.patch('/:id', allowRoles('admin'), asyncHandler(controller.updateTest));
 router.post('/:id/questions', allowRoles('admin'), asyncHandler(controller.addQuestion));
 router.patch('/:id/publish', allowRoles('admin'), asyncHandler(controller.publishTest));
 router.post('/:id/start', allowRoles('student'), asyncHandler(controller.startTest));
+router.post('/:id/practice/start', allowRoles('student'), asyncHandler(controller.startTestPractice));
+router.post('/:id/practice/submit', allowRoles('student'), asyncHandler(controller.submitTestPractice));
 router.patch('/:id/answers', allowRoles('student'), asyncHandler(controller.saveTestAnswers));
 router.post('/:id/submit', allowRoles('student'), asyncHandler(controller.submitTest));
 module.exports = router;

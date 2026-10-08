@@ -2,6 +2,13 @@ const Test = require('../models/Test');
 const Question = require('../models/Question');
 const TestAttempt = require('../models/TestAttempt');
 const { HttpError } = require('../middleware/errors');
+const jwt = require('jsonwebtoken');
+const RETAKE_DELAY_MS = 24 * 60 * 60 * 1000;
+
+function retryAvailableAt(attempt) {
+  if (!attempt?.submittedAt || Number(attempt.attemptNumber || 1) > 1) return null;
+  return new Date(new Date(attempt.submittedAt).getTime() + RETAKE_DELAY_MS);
+}
 
 function deadlineFor(test, attempt) {
   const durationEnd = new Date(attempt.startedAt).getTime() + Number(test.duration) * 60 * 1000;
@@ -23,7 +30,7 @@ function sanitizeAnswers(answers, questions) {
 
 async function startAttempt(testId, studentId, now = new Date()) {
   const test = await Test.findById(testId);
-  if (!test || test.status !== 'published' || now < test.startTime || now > test.endTime) {
+  if (!test || test.status !== 'published' || now < test.startTime) {
     throw new HttpError(404, 'Test is not available');
   }
   const existing = await TestAttempt.findOne({ testId, studentId }).sort({ createdAt: -1 });
@@ -36,10 +43,21 @@ async function startAttempt(testId, studentId, now = new Date()) {
     const questions = await Question.find({ testId }).sort({ order: 1, _id: 1 }).select('questionText options marks order');
     return { attempt: existing, questions, deadlineAt };
   }
-  if (existing && !test.allowRetake) throw new HttpError(409, 'You have already attempted this test');
+  if (existing && existing.status === 'submitted') {
+    throw new HttpError(409, 'The real result is already recorded. Use practice mode after it unlocks.');
+  }
+  if (!existing && now > test.endTime) {
+    throw new HttpError(404, 'The scheduled time for the first attempt has ended');
+  }
   const questions = await Question.find({ testId }).sort({ order: 1, _id: 1 }).select('questionText options marks order');
   if (!questions.length) throw new HttpError(409, 'This test has no questions yet');
-  const attempt = await TestAttempt.create({ testId, studentId, startedAt: now, totalQuestions: questions.length });
+  const attempt = await TestAttempt.create({
+    testId,
+    studentId,
+    startedAt: now,
+    totalQuestions: questions.length,
+    attemptNumber: 1,
+  });
   return { attempt, questions, deadlineAt: deadlineFor(test, attempt) };
 }
 
@@ -122,6 +140,73 @@ async function submitAttempt(testId, studentId, answers = [], now = new Date(), 
   throw new HttpError(409, 'The attempt could not be submitted');
 }
 
+async function startPractice(testId, studentId, now = new Date()) {
+  const test = await Test.findById(testId);
+  if (!test || test.status !== 'published' || now < test.startTime) throw new HttpError(404, 'Practice is not available');
+  const firstResult = await TestAttempt.findOne({ testId, studentId, status: 'submitted' })
+    .sort({ submittedAt: 1 }).select('submittedAt');
+  if (!firstResult?.submittedAt) throw new HttpError(409, 'Complete the first real attempt before practice is unlocked');
+  const availableAt = new Date(new Date(firstResult.submittedAt).getTime() + RETAKE_DELAY_MS);
+  if (now < availableAt) throw new HttpError(409, `Practice unlocks after ${availableAt.toISOString()}`);
+  const questions = await Question.find({ testId }).sort({ order: 1, _id: 1 }).select('questionText options marks order');
+  if (!questions.length) throw new HttpError(409, 'This test has no questions yet');
+  const deadlineAt = new Date(now.getTime() + Number(test.duration) * 60 * 1000);
+  const practiceToken = jwt.sign({
+    mode: 'practice', testId: String(test._id), studentId: String(studentId),
+    startedAt: now.getTime(), deadlineAt: deadlineAt.getTime(),
+  }, process.env.JWT_SECRET, { expiresIn: Number(test.duration) * 60 + 180 });
+  return { questions, deadlineAt, practiceToken, isPractice: true };
+}
+
+async function submitPractice(testId, studentId, practiceToken, answers = [], now = new Date()) {
+  let claims;
+  try {
+    claims = jwt.verify(String(practiceToken || ''), process.env.JWT_SECRET);
+  } catch (_) {
+    throw new HttpError(409, 'This practice session has expired. Start practice again.');
+  }
+  if (claims.mode !== 'practice' || String(claims.testId) !== String(testId) || String(claims.studentId) !== String(studentId)) {
+    throw new HttpError(403, 'Practice session does not match this student and test');
+  }
+  const startedAt = new Date(Number(claims.startedAt));
+  const deadlineAt = new Date(Number(claims.deadlineAt));
+  if (Number.isNaN(startedAt.getTime()) || Number.isNaN(deadlineAt.getTime()) || now.getTime() > deadlineAt.getTime() + 120000) {
+    throw new HttpError(409, 'Practice time has expired. Start another practice attempt.');
+  }
+  const test = await Test.findOne({ _id: testId, status: 'published' });
+  if (!test) throw new HttpError(404, 'Test not found');
+  const questions = await Question.find({ testId }).select('+correctAnswer');
+  const sanitized = sanitizeAnswers(answers, questions);
+  const answerMap = new Map(sanitized.map(answer => [String(answer.questionId), answer.selected]));
+  let attempted = 0;
+  let correct = 0;
+  let obtainedMarks = 0;
+  for (const question of questions) {
+    if (!answerMap.has(String(question._id))) continue;
+    attempted += 1;
+    if (answerMap.get(String(question._id)) === question.correctAnswer) {
+      correct += 1;
+      obtainedMarks += Number(question.marks || 0);
+    }
+  }
+  const totalMarks = questions.reduce((sum, question) => sum + Number(question.marks || 0), 0);
+  const submittedAt = now >= deadlineAt ? deadlineAt : now;
+  return {
+    isPractice: true,
+    notSaved: true,
+    totalQuestions: questions.length,
+    attempted,
+    correct,
+    wrong: attempted - correct,
+    totalMarks,
+    obtainedMarks,
+    percentage: totalMarks ? Math.round(obtainedMarks / totalMarks * 10000) / 100 : 0,
+    timeTaken: Math.max(0, Math.min(Number(test.duration) * 60, Math.floor((submittedAt.getTime() - startedAt.getTime()) / 1000))),
+    submittedAt,
+    autoSubmitted: now >= deadlineAt,
+  };
+}
+
 async function autoSubmitExpiredAttempts(now = new Date()) {
   const attempts = await TestAttempt.find({ status: 'in_progress' })
     .sort({ startedAt: 1 }).limit(500).populate('testId', 'duration endTime');
@@ -137,4 +222,4 @@ async function autoSubmitExpiredAttempts(now = new Date()) {
   return submitted;
 }
 
-module.exports = { startAttempt, saveAnswers, submitAttempt, autoSubmitExpiredAttempts, deadlineFor };
+module.exports = { startAttempt, saveAnswers, submitAttempt, startPractice, submitPractice, autoSubmitExpiredAttempts, deadlineFor, retryAvailableAt, RETAKE_DELAY_MS };

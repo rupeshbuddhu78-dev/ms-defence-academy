@@ -38,6 +38,7 @@ router.delete('/content/videos/:id', authenticate, allowRoles('admin'), asyncHan
 router.delete('/content/files/:id', authenticate, allowRoles('admin'), asyncHandler(content.deleteMedia));
 router.use('/students', require('./students'));
 router.use('/attendance', require('./attendance'));
+router.use('/physical-training-results', require('./physical-training-results'));
 router.use('/', require('./academy'));
 router.use('/tests', require('./tests'));
 router.get('/notices', authenticate, asyncHandler(controller.listNotices));

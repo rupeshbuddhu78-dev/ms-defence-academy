@@ -18,6 +18,7 @@ A Flutter Android client and Node.js/Express/MongoDB API for a defence and physi
 - Login (shared with admin; server assigns role)
 - Home dashboard: profile photo, identity/batch, attendance summary, upcoming training/tests and notices; refreshes the profile when returning to the Home tab
 - My QR Code: secure opaque student token only
+- Physical Training Results: private history for running time, beam/pull-ups, long/high jump, push-ups, sit-ups and shuttle run
 - Training schedule
 - Attendance calendar and monthly summary
 - Written preparation/test list and timed MCQ attempt
@@ -34,7 +35,8 @@ A Flutter Android client and Node.js/Express/MongoDB API for a defence and physi
 - Batch and course management with batch assignment on enrollment
 - Camera-based attendance scanner → student photo and basic-detail preview → PRESENT confirmation
 - Monthly attendance calendar with marked-day indicators; tapping a student opens their full attendance history and summary
-- Batch-specific test scheduling/editing with separate start/close date and clock controls, bulk MCQ entry (10 by default, up to 20 per save), publish action, timed answer autosave and automatic result submission
+- Batch-specific test scheduling/editing with the closing time calculated from selected start + duration, bulk MCQ entry (10 by default, up to 100 per save), timed autosave and automatic submission; only the first official result is saved, then 24-hour-delayed unlimited practice runs without storing practice answers/results
+- Batch-filtered physical assessment recording for individual students; students can see only their own saved history
 - Batch-filtered student directory, fee ledgers, attendance calendars and admin exam results; students receive sequential `MSDA01`, `MSDA02`, … IDs automatically
 - Batch-specific training schedules
 - All-academy or batch-targeted notices and persisted in-app notifications
@@ -42,7 +44,7 @@ A Flutter Android client and Node.js/Express/MongoDB API for a defence and physi
 - Exam results for admins (filterable by batch with student profile details) and students (own profile and score history)
 - New students sign in using their phone as the temporary password and must set a new password before using the app
 - Student profile and photo retrieval from MongoDB; photo uploads show byte-based progress and are stored in Cloudinary; Aadhaar is encrypted at rest with AES-256-GCM
-- Admins can permanently delete a test and dependent results, or permanently delete a student's account and associated records after a confirmation dialog
+- Admins can permanently delete a test and dependent results, or permanently delete a student's account, including associated physical assessment records, after a confirmation dialog
 
 **Navigation:** Dashboard → scanner / test authoring / training / notices / fees; bottom bar → Dashboard, Students, Attendance, More.
 
@@ -50,9 +52,9 @@ A Flutter Android client and Node.js/Express/MongoDB API for a defence and physi
 
 1. **UI:** central Poppins typography and green design tokens; reusable cards, navigation, loading/error/empty states; responsive scrollable layouts.
 2. **Identity:** email-or-phone JWT login endpoint, bcrypt password hashes, forced first-login password rotation for newly enrolled students, Android Keystore-backed persisted Flutter session, and database-backed role checks on every protected API.
-3. **Data:** MongoDB references connect users to student profiles/batches; attendance, training, tests, questions, attempts, notices, fees and notifications are stored separately with timestamps/indexes. Enrollment creates the login, profile and initial fee ledger together.
+3. **Data:** MongoDB references connect users to student profiles/batches; attendance, training, physical results, tests, questions, attempts, notices, fees and notifications are stored separately with timestamps/indexes. Enrollment creates the login, profile and initial fee ledger together.
 4. **Attendance:** QR payload is a random opaque token; only admins can resolve it; server looks up the student; admin confirms; MongoDB unique index prevents repeat present marks for one student/session/day.
-5. **Exams:** admins schedule/edit exams for a batch and may add questions individually or in batches of up to 20. Upcoming tests stay visible but locked; students can resume, answers autosave to the server, and expired attempts are scored and recorded automatically by the backend. Answer keys are excluded from student queries.
+5. **Exams:** admins schedule exams for a batch; closing time is computed as start + duration. Up to 100 questions can be added in one bulk request. Only the first timed official attempt/result is persisted and shown to admins. After 24 hours, students get unlimited timed practice sessions whose scores are returned transiently and never stored. Answers autosave and expired official attempts are scored automatically. Answer keys are excluded from student queries.
 6. **API:** modular route groups; role middleware; JSON errors; rate-limited login; request body size cap; health endpoint.
 7. **Media and mobile:** app shell and screens are separated from the API client/session provider/theme; Android camera permission is configured for QR scanning; student photos upload through authenticated multipart routes to Cloudinary.
 
@@ -97,11 +99,12 @@ These are development credentials. Change/remove them before a shared or product
 
 ### 2. Flutter Android app
 
-Install Flutter 3.24+ (Dart 3.3+), Android SDK and Java 17. The photo-picker dependency requires Android 7.0/API 24 or newer. From `flutter/`:
+Install Flutter 3.35+ (Dart 3.11+), Android SDK and Java 17. The photo-picker dependency requires Android 7.0/API 24 or newer. From `flutter/`:
 
 ```bash
 flutter pub get
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:4000/api
+flutter build apk --release --target-platform android-arm64
 ```
 
 The app defaults to the deployed API at `https://ms-defence-academy-backend.onrender.com/api`. For local development, override it with the Android emulator's host-machine alias `http://10.0.2.2:4000/api`. For a physical phone using a local server, set `API_BASE_URL` to the development computer's reachable LAN address (for example, `http://192.168.1.20:4000/api`) and allow the API port through the local firewall.
@@ -122,7 +125,7 @@ See [API reference](docs/API.md) for endpoints, permissions and payload examples
 
 ## Validation status and limitations
 
-- Backend JavaScript syntax checks and all 21 automated API/security smoke tests pass (`npm test`), including encrypted Aadhaar round-trip, authentication guards, login validation, root/health, protected fee/test actions and Render proxy trust.
-- Flutter analyzer reports no issues; this project does not currently define a Flutter unit/widget-test directory. The optimized ARM64 APK builds successfully, is signed with the local debug key for direct testing, and has not been tested on a physical device.
+- Backend JavaScript syntax checks and all 30 automated API/security tests pass (`npm test`), including physical-result access controls, practice scoring without database persistence, authentication guards and encrypted Aadhaar.
+- Flutter analyzer reports no issues and the release APK builds successfully (74.6 MB universal APK). It is signed with the local debug key for direct testing; use an organization-owned release/upload key before Play Store or production distribution. The app has not been tested on a physical device.
 - API screens require MongoDB to be reachable. The Android manifest allows cleartext HTTP for local development; use HTTPS and disable cleartext traffic for production.
 - Fees are ledger-only (no payment gateway). Notices and schedules are persisted in-app notifications (inbox refresh/pull-to-refresh; no Firebase push/SMS configured). Tests remain visible as locked/closed according to their schedule; Android does not allow the app to launch itself from the background. Admins must securely share each student's phone-based temporary login details. Configure backups and institute-specific retention/access policies before launch; Aadhaar should be collected only where necessary.

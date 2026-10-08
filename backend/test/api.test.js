@@ -148,6 +148,62 @@ test('test deletion endpoint rejects unauthenticated callers', async () => {
   assert.equal(response.body.ok, false);
 });
 
+test('physical training result endpoints require authentication and writes require admin', async () => {
+  const list = await request(app).get('/api/physical-training-results');
+  const create = await request(app).post('/api/physical-training-results').send({});
+  assert.equal(list.status, 401);
+  assert.equal(create.status, 401);
+});
+
+test('physical training result schema stores batch, individual metrics, date and recorder', () => {
+  const PhysicalTrainingResult = require('../src/models/PhysicalTrainingResult');
+  for (const field of ['studentId', 'batchId', 'testDate', 'runTimeSeconds', 'beamReps', 'longJumpCm', 'highJumpCm', 'pushUps', 'sitUps', 'shuttleRunSeconds', 'recordedBy']) {
+    assert.ok(PhysicalTrainingResult.schema.path(field), `missing ${field}`);
+  }
+});
+
+test('practice unlocks 24 hours after the first official result and official attempt deadline respects schedule duration', () => {
+  const { retryAvailableAt, deadlineFor, RETAKE_DELAY_MS } = require('../src/services/exams');
+  const submittedAt = new Date('2026-10-08T10:00:00.000Z');
+  assert.equal(retryAvailableAt({ submittedAt }).toISOString(), '2026-10-09T10:00:00.000Z');
+  assert.equal(RETAKE_DELAY_MS, 24 * 60 * 60 * 1000);
+  const test = { duration: 10, endTime: new Date('2026-10-08T10:10:00.000Z') };
+  const first = { attemptNumber: 1, startedAt: new Date('2026-10-08T10:08:00.000Z') };
+  assert.equal(deadlineFor(test, first).toISOString(), '2026-10-08T10:10:00.000Z');
+});
+
+test('practice scoring returns a score without creating a persisted test attempt', async () => {
+  const exams = require('../src/services/exams');
+  const Test = require('../src/models/Test');
+  const Question = require('../src/models/Question');
+  const TestAttempt = require('../src/models/TestAttempt');
+  const jwt = require('jsonwebtoken');
+  const testId = '507f1f77bcf86cd799439011';
+  const studentId = '507f1f77bcf86cd799439012';
+  const questionId = '507f1f77bcf86cd799439013';
+  const now = new Date();
+  const deadlineAt = new Date(now.getTime() + 60_000);
+  const token = jwt.sign({ mode: 'practice', testId, studentId, startedAt: now.getTime(), deadlineAt: deadlineAt.getTime() }, process.env.JWT_SECRET, { expiresIn: 300 });
+  const previousTestFindOne = Test.findOne;
+  const previousQuestionFind = Question.find;
+  const previousAttemptCreate = TestAttempt.create;
+  let persisted = false;
+  Test.findOne = async () => ({ duration: 10 });
+  Question.find = () => ({ select: async () => [{ _id: questionId, correctAnswer: 2, marks: 5 }] });
+  TestAttempt.create = async () => { persisted = true; throw new Error('practice must not persist'); };
+  try {
+    const result = await exams.submitPractice(testId, studentId, token, [{ questionId, selected: 2 }], now);
+    assert.equal(result.isPractice, true);
+    assert.equal(result.notSaved, true);
+    assert.equal(result.obtainedMarks, 5);
+    assert.equal(persisted, false);
+  } finally {
+    Test.findOne = previousTestFindOne;
+    Question.find = previousQuestionFind;
+    TestAttempt.create = previousAttemptCreate;
+  }
+});
+
 test('admin fee and batch update endpoints reject unauthenticated callers', async () => {
   const fee = await request(app).patch('/api/fees/507f1f77bcf86cd799439011').send({ totalFees: 100 });
   assert.equal(fee.status, 401);
@@ -168,8 +224,10 @@ test('exam edit, bulk-question, answer-save and result endpoints require authent
   const edit = await request(app).patch(`/api/tests/${id}`).send({ title: 'Edited' });
   const bulk = await request(app).patch(`/api/tests/${id}/questions/bulk`).send({ questions: [] });
   const save = await request(app).patch(`/api/tests/${id}/answers`).send({ answers: [] });
+  const practiceStart = await request(app).post(`/api/tests/${id}/practice/start`).send({});
+  const practiceSubmit = await request(app).post(`/api/tests/${id}/practice/submit`).send({ practiceToken: 'bad', answers: [] });
   const results = await request(app).get('/api/tests/results');
-  for (const response of [edit, bulk, save, results]) {
+  for (const response of [edit, bulk, save, practiceStart, practiceSubmit, results]) {
     assert.equal(response.status, 401);
     assert.equal(response.body.ok, false);
   }

@@ -13,6 +13,7 @@ import 'admin_account_page.dart';
 import 'security_logs_page.dart';
 import '../shared/content_pages.dart';
 import 'student_approvals_page.dart';
+import 'physical_training_admin_page.dart';
 
 class _BulkQuestionDraft {
   final question = TextEditingController();
@@ -53,9 +54,14 @@ class _ScannerPageState extends State<ScannerPage> {
 
   String _entryExitSummary() {
     if (currentAttendance == null) return 'No entry recorded today';
-    final entry = DateTime.tryParse(currentAttendance!['entryAt']?.toString() ?? '')?.toLocal();
-    final exit = DateTime.tryParse(currentAttendance!['exitAt']?.toString() ?? '')?.toLocal();
-    String fmt(DateTime? value) => value == null ? '—' : DateFormat('hh:mm a').format(value);
+    final entry =
+        DateTime.tryParse(currentAttendance!['entryAt']?.toString() ?? '')
+            ?.toLocal();
+    final exit =
+        DateTime.tryParse(currentAttendance!['exitAt']?.toString() ?? '')
+            ?.toLocal();
+    String fmt(DateTime? value) =>
+        value == null ? '—' : DateFormat('hh:mm a').format(value);
     return 'Entry: ${fmt(entry)}   •   Exit: ${fmt(exit)}';
   }
 
@@ -91,10 +97,9 @@ class _ScannerPageState extends State<ScannerPage> {
       error = null;
     });
     try {
-      final result = await context
-          .read<SessionProvider>()
-          .api
-          .post('/attendance/lookup-qr', {'token': value, 'attendanceDate': _localDate()});
+      final result = await context.read<SessionProvider>().api.post(
+          '/attendance/lookup-qr',
+          {'token': value, 'attendanceDate': _localDate()});
       if (!mounted) return;
       setState(() {
         token = value;
@@ -118,8 +123,8 @@ class _ScannerPageState extends State<ScannerPage> {
     final localDate = _localDate();
     setState(() => busy = true);
     try {
-      final result = await context.read<SessionProvider>().api.post(
-          '/attendance/mark', {
+      final result =
+          await context.read<SessionProvider>().api.post('/attendance/mark', {
         'token': scannedToken,
         'status': 'present',
         'action': _inside ? 'exit' : 'entry',
@@ -271,10 +276,14 @@ class _ScannerPageState extends State<ScannerPage> {
                                       child: FilledButton.icon(
                                           onPressed:
                                               busy ? null : _markAttendance,
-                                          icon: Icon(_inside ? Icons.logout : Icons.login),
+                                          icon: Icon(_inside
+                                              ? Icons.logout
+                                              : Icons.login),
                                           label: Text(busy
                                               ? 'Saving…'
-                                              : _inside ? 'Mark exit' : 'Mark entry'))),
+                                              : _inside
+                                                  ? 'Mark exit'
+                                                  : 'Mark entry'))),
                                 TextButton(
                                     onPressed: () async {
                                       setState(() {
@@ -634,7 +643,8 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
         'batchId': values['batchId'],
         'course': values['course'],
         'address': values['address'],
-        'joiningDate': (values['joiningDate'] as DateTime).toUtc().toIso8601String(),
+        'joiningDate':
+            (values['joiningDate'] as DateTime).toUtc().toIso8601String(),
         'totalFees': values['totalFees'],
         'paidAmount': values['paidAmount'],
       };
@@ -753,6 +763,8 @@ class AdminMorePage extends StatelessWidget {
               const BatchManagementPage()),
           _link(context, 'Tests & questions', Icons.quiz_outlined,
               const TestManagementPage()),
+          _link(context, 'Physical training results', Icons.fitness_center,
+              const PhysicalTrainingAdminPage()),
           _link(context, 'Training schedule', Icons.fitness_center,
               const TrainingAdminPage()),
           _link(
@@ -765,8 +777,8 @@ class AdminMorePage extends StatelessWidget {
               const AdminAccountPage()),
           _link(context, 'Security logs', Icons.security_outlined,
               const SecurityLogsPage()),
-          _link(context, 'Branding, files & videos', Icons.cloud_upload_outlined,
-              const AdminContentPage()),
+          _link(context, 'Branding, files & videos',
+              Icons.cloud_upload_outlined, const AdminContentPage()),
           _link(context, 'Student approvals', Icons.how_to_reg_outlined,
               const StudentApprovalsPage()),
           Card(
@@ -1120,14 +1132,15 @@ class _TestManagementPageState extends State<TestManagementPage> {
         : existing?['batchId']?.toString();
     String? batchId = existing == null
         ? ''
-        : activeBatches.any((batch) => batch['_id']?.toString() == existingBatchId)
+        : activeBatches
+                .any((batch) => batch['_id']?.toString() == existingBatchId)
             ? existingBatchId
             : '';
     DateTime start =
         DateTime.tryParse(existing?['startTime']?.toString() ?? '') ??
             DateTime.now().add(const Duration(hours: 1));
-    DateTime end = DateTime.tryParse(existing?['endTime']?.toString() ?? '') ??
-        start.add(const Duration(hours: 2));
+    DateTime end =
+        start.add(Duration(minutes: int.tryParse(duration.text) ?? 30));
     final values = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -1160,7 +1173,8 @@ class _TestManagementPageState extends State<TestManagementPage> {
                     decoration:
                         const InputDecoration(labelText: 'Target batch'),
                     items: [
-                      const DropdownMenuItem<String>(value: '', child: Text('All batches')),
+                      const DropdownMenuItem<String>(
+                          value: '', child: Text('All batches')),
                       ...activeBatches.map((batch) => DropdownMenuItem<String>(
                             value: batch['_id'].toString(),
                             child: Text(batch['name']?.toString() ?? 'Batch'),
@@ -1174,6 +1188,12 @@ class _TestManagementPageState extends State<TestManagementPage> {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                         labelText: 'Test duration in minutes *'),
+                    onChanged: (value) => update(() {
+                      final minutes = int.tryParse(value);
+                      if (minutes != null && minutes > 0) {
+                        end = start.add(Duration(minutes: minutes));
+                      }
+                    }),
                     validator: (value) {
                       final parsed = int.tryParse(value ?? '');
                       return parsed == null || parsed < 1 || parsed > 300
@@ -1194,55 +1214,38 @@ class _TestManagementPageState extends State<TestManagementPage> {
                       onPressed: () async {
                         final selected = await _pickTime(dialogContext, start);
                         if (selected != null) {
-                          update(() => start = DateTime(start.year, start.month,
-                              start.day, selected.hour, selected.minute));
+                          update(() {
+                            start = DateTime(start.year, start.month, start.day,
+                                selected.hour, selected.minute);
+                            end = start.add(Duration(
+                                minutes: int.tryParse(duration.text) ?? 30));
+                          });
                         }
                       },
                     ),
                     onTap: () async {
                       final selected = await _pickDate(dialogContext, start);
                       if (selected != null) {
-                        update(() => start = DateTime(
-                            selected.year,
-                            selected.month,
-                            selected.day,
-                            start.hour,
-                            start.minute));
+                        update(() {
+                          start = DateTime(selected.year, selected.month,
+                              selected.day, start.hour, start.minute);
+                          end = start.add(Duration(
+                              minutes: int.tryParse(duration.text) ?? 30));
+                        });
                       }
                     },
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.stop_circle_outlined),
-                    title: const Text('Test closes'),
-                    subtitle: Text(DateFormat('EEE, dd MMM yyyy').format(end)),
-                    trailing: TextButton.icon(
-                      icon: const Icon(Icons.schedule),
-                      label: Text(DateFormat('hh:mm a').format(end)),
-                      onPressed: () async {
-                        final selected = await _pickTime(dialogContext, end);
-                        if (selected != null) {
-                          update(() => end = DateTime(end.year, end.month,
-                              end.day, selected.hour, selected.minute));
-                        }
-                      },
-                    ),
-                    onTap: () async {
-                      final selected = await _pickDate(dialogContext, end);
-                      if (selected != null) {
-                        update(() => end = DateTime(
-                            selected.year,
-                            selected.month,
-                            selected.day,
-                            end.hour,
-                            end.minute));
-                      }
-                    },
+                    leading: const Icon(Icons.timer_outlined),
+                    title: const Text('Calculated closing time'),
+                    subtitle: Text(
+                        '${DateFormat('EEE, dd MMM yyyy • hh:mm a').format(end)} (start + duration)'),
                   ),
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                        'Tap the row to change its date; tap the clock time to set the exact start or close time.',
+                        'Only the first timed attempt is recorded as the official result. Practice unlocks 24 hours later; practice answers and scores are not saved.',
                         style: TextStyle(fontSize: 11)),
                   ),
                   const Text(
@@ -1269,7 +1272,8 @@ class _TestManagementPageState extends State<TestManagementPage> {
                   'description': description.text.trim(),
                   // Send null explicitly so an existing batch-specific test
                   // can be changed to All batches during edit.
-                  'batchId': batchId == null || batchId!.isEmpty ? null : batchId,
+                  'batchId':
+                      batchId == null || batchId!.isEmpty ? null : batchId,
                   'duration': int.parse(duration.text),
                   'startTime': start.toUtc().toIso8601String(),
                   'endTime': end.toUtc().toIso8601String(),
@@ -1395,7 +1399,7 @@ class _TestManagementPageState extends State<TestManagementPage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
-          title: Text('Add questions • ${drafts.length}/20'),
+          title: Text('Add questions • ${drafts.length}/100'),
           content: SizedBox(
             width: (size.width - 48).clamp(280.0, 760.0),
             height: size.height * .72,
@@ -1403,11 +1407,14 @@ class _TestManagementPageState extends State<TestManagementPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  onPressed: drafts.length >= 20
+                  onPressed: drafts.length >= 100
                       ? null
-                      : () => update(() => drafts.add(_BulkQuestionDraft())),
+                      : () => update(() => drafts.addAll(List.generate(
+                            (100 - drafts.length).clamp(0, 10).toInt(),
+                            (_) => _BulkQuestionDraft(),
+                          ))),
                   icon: const Icon(Icons.add),
-                  label: const Text('Add another (maximum 20)'),
+                  label: const Text('Add 10 more (maximum 100)'),
                 ),
               ),
               Expanded(
@@ -1665,7 +1672,8 @@ class _TestManagementPageState extends State<TestManagementPage> {
                             onTap: () => _createTest(existing: test)),
                         ListTile(
                             leading: const Icon(Icons.library_add_outlined),
-                            title: const Text('Add 10–20 questions together'),
+                            title:
+                                const Text('Add up to 100 questions together'),
                             onTap: () => _addQuestions(test)),
                         ListTile(
                             leading: const Icon(Icons.add),
@@ -2085,7 +2093,8 @@ class _TrainingAdminPageState extends State<TrainingAdminPage> {
                   'location': location.text.trim(),
                   'date': DateTime(date.year, date.month, date.day, start.hour,
                           start.minute)
-                      .toUtc().toIso8601String(),
+                      .toUtc()
+                      .toIso8601String(),
                   'startTime':
                       '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
                   'endTime':

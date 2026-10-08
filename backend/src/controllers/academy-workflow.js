@@ -103,12 +103,11 @@ async function createTest(req, res) {
   if (title.length < 2) throw new HttpError(400, 'Test title is required');
   const batch = body.batchId ? await activeBatch(body.batchId) : null;
   const startTime = validDate(body.startTime, 'Test start time');
-  const endTime = validDate(body.endTime, 'Test end time');
-  if (endTime <= startTime) throw new HttpError(400, 'Test end time must be after its start time');
   const duration = Number(body.duration);
   if (!Number.isInteger(duration) || duration < 1 || duration > 300) {
     throw new HttpError(400, 'Test duration must be from 1 to 300 minutes');
   }
+  const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
   const test = await Test.create({
     title,
     description: String(body.description || ''),
@@ -117,7 +116,6 @@ async function createTest(req, res) {
     duration,
     startTime,
     endTime,
-    allowRetake: body.allowRetake === true || body.allowRetake === 'true',
     status: 'draft',
     createdBy: req.user._id,
   });
@@ -149,9 +147,7 @@ async function updateTest(req, res) {
     test.duration = duration;
   }
   if (body.startTime !== undefined) test.startTime = validDate(body.startTime, 'Test start time');
-  if (body.endTime !== undefined) test.endTime = validDate(body.endTime, 'Test end time');
-  if (test.endTime <= test.startTime) throw new HttpError(400, 'Test end time must be after its start time');
-  if (body.allowRetake !== undefined) test.allowRetake = body.allowRetake === true || body.allowRetake === 'true';
+  test.endTime = new Date(test.startTime.getTime() + test.duration * 60 * 1000);
   await test.save();
   await test.populate('batchId', 'name');
   return respond(res, test);
@@ -172,11 +168,22 @@ async function listTests(req, res) {
   const data = await Promise.all(tests.map(async test => {
     const item = { ...test.toJSON(), questionCount: await Question.countDocuments({ testId: test._id }) };
     if (studentProfile) {
-      item.attempt = await TestAttempt.findOne({ testId: test._id, studentId: studentProfile._id })
-        .sort({ createdAt: -1 }).select('status percentage obtainedMarks submittedAt autoSubmitted');
+      const latestAttempt = await TestAttempt.findOne({ testId: test._id, studentId: studentProfile._id })
+        .sort({ createdAt: -1 }).select('status percentage obtainedMarks submittedAt autoSubmitted attemptNumber startedAt');
+      item.attempt = latestAttempt;
+      const retryAt = latestAttempt?.status === 'submitted' && Number(latestAttempt.attemptNumber || 1) === 1 && latestAttempt.submittedAt
+        ? new Date(new Date(latestAttempt.submittedAt).getTime() + 24 * 60 * 60 * 1000)
+        : null;
+      item.attemptNumber = latestAttempt?.attemptNumber || (latestAttempt ? 1 : 0);
+      item.retryAvailableAt = retryAt;
       item.scheduleState = now < test.startTime ? 'locked' : now > test.endTime ? 'closed' : 'open';
-      item.canStart = item.scheduleState === 'open' &&
-        (!item.attempt || item.attempt.status !== 'submitted' || test.allowRetake === true);
+      item.canStart = latestAttempt?.status === 'in_progress'
+        ? true
+        : latestAttempt?.status === 'submitted'
+          ? false
+          : item.scheduleState === 'open';
+      item.practiceAvailable = latestAttempt?.status === 'submitted' && !!retryAt && now >= retryAt;
+      item.attempt = latestAttempt;
     }
     return item;
   }));
@@ -219,8 +226,8 @@ async function addQuestionsBulk(req, res) {
     throw new HttpError(409, 'Questions cannot be changed after the test starts or has attempts');
   }
   const input = req.body?.questions;
-  if (!Array.isArray(input) || input.length < 1 || input.length > 20) {
-    throw new HttpError(400, 'Add between 1 and 20 questions at a time');
+  if (!Array.isArray(input) || input.length < 1 || input.length > 100) {
+    throw new HttpError(400, 'Add between 1 and 100 questions at a time');
   }
   const questions = input.map((item, index) => {
     const questionText = String(item?.questionText || '').trim();
@@ -284,6 +291,16 @@ async function saveTestAnswers(req, res) {
 async function submitTest(req, res) {
   const profile = await studentTestProfile(req, req.params.id);
   return respond(res, await exams.submitAttempt(req.params.id, profile._id, req.body?.answers || []));
+}
+
+async function startTestPractice(req, res) {
+  const profile = await studentTestProfile(req, req.params.id);
+  return respond(res, await exams.startPractice(req.params.id, profile._id), 201);
+}
+
+async function submitTestPractice(req, res) {
+  const profile = await studentTestProfile(req, req.params.id);
+  return respond(res, await exams.submitPractice(req.params.id, profile._id, req.body?.practiceToken, req.body?.answers || []));
 }
 
 async function listResults(req, res) {
@@ -442,6 +459,8 @@ module.exports = {
   startTest,
   saveTestAnswers,
   submitTest,
+  startTestPractice,
+  submitTestPractice,
   listResults,
   createNotice,
   listNotices,

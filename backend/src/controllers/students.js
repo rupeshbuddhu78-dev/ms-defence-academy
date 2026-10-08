@@ -5,6 +5,7 @@ const Batch = require('../models/Batch');
 const Fee = require('../models/Fee');
 const Attendance = require('../models/Attendance');
 const TestAttempt = require('../models/TestAttempt');
+const PhysicalTrainingResult = require('../models/PhysicalTrainingResult');
 const Notification = require('../models/Notification');
 const { HttpError } = require('../middleware/errors');
 const cloudImages = require('../services/cloudinary');
@@ -392,6 +393,7 @@ async function deleteStudent(req, res) {
     await session.withTransaction(async () => {
       await Attendance.deleteMany({ studentId: profile._id }).session(session);
       await TestAttempt.deleteMany({ studentId: profile._id }).session(session);
+      await PhysicalTrainingResult.deleteMany({ studentId: profile._id }).session(session);
       await Fee.deleteMany({ studentId: profile._id }).session(session);
       await Notification.deleteMany({ userId }).session(session);
       await StudentProfile.deleteOne({ _id: profile._id }).session(session);
@@ -401,7 +403,7 @@ async function deleteStudent(req, res) {
     await session.endSession();
   }
   if (publicId) await cloudImages.deleteImage(publicId);
-  return respond(res, { message: 'Student account and associated profile, attendance, test attempts, fees, and notifications were permanently deleted' });
+  return respond(res, { message: 'Student account and associated profile, attendance, test attempts, physical results, fees, and notifications were permanently deleted' });
 }
 
 async function storePhoto(profile, file) {

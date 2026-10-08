@@ -48,24 +48,25 @@ class _TrainingPageState extends State<TrainingPage> {
                       'Your upcoming training sessions will appear here.');
             return ListView(
                 padding: const EdgeInsets.all(16),
-                children: items
-                    .map((item) {
-                      final date = DateTime.tryParse(item['date']?.toString() ?? '')?.toLocal();
-                      final dateLabel = date == null ? 'Date not set' : DateFormat('EEE, dd MMM yyyy').format(date);
-                      return Card(
-                          child: ListTile(
-                            isThreeLine: true,
-                            leading: const CircleAvatar(
-                                backgroundColor: AcademyColors.mint,
-                                child: Icon(Icons.fitness_center,
-                                    color: AcademyColors.green)),
-                            title: Text(item['title'] ?? 'Training'),
-                            subtitle: Text(
-                                '${item['type'] ?? 'Physical Training'}\n$dateLabel • ${item['startTime'] ?? ''}–${item['endTime'] ?? ''}\n${item['location'] ?? ''}'),
-                          ),
-                        );
-                    })
-                    .toList());
+                children: items.map((item) {
+                  final date = DateTime.tryParse(item['date']?.toString() ?? '')
+                      ?.toLocal();
+                  final dateLabel = date == null
+                      ? 'Date not set'
+                      : DateFormat('EEE, dd MMM yyyy').format(date);
+                  return Card(
+                    child: ListTile(
+                      isThreeLine: true,
+                      leading: const CircleAvatar(
+                          backgroundColor: AcademyColors.mint,
+                          child: Icon(Icons.fitness_center,
+                              color: AcademyColors.green)),
+                      title: Text(item['title'] ?? 'Training'),
+                      subtitle: Text(
+                          '${item['type'] ?? 'Physical Training'}\n$dateLabel • ${item['startTime'] ?? ''}–${item['endTime'] ?? ''}\n${item['location'] ?? ''}'),
+                    ),
+                  );
+                }).toList());
           },
         ),
       );
@@ -191,8 +192,11 @@ class _AttendancePageState extends State<AttendancePage> {
                             DateTime.now();
                     final time =
                         DateTime.tryParse(record['time']?.toString() ?? '');
-                    final entry = DateTime.tryParse(record['entryAt']?.toString() ?? '') ?? time;
-                    final exit = DateTime.tryParse(record['exitAt']?.toString() ?? '');
+                    final entry = DateTime.tryParse(
+                            record['entryAt']?.toString() ?? '') ??
+                        time;
+                    final exit =
+                        DateTime.tryParse(record['exitAt']?.toString() ?? '');
                     final present = record['status'] == 'present';
                     return Card(
                         child: ListTile(
@@ -200,7 +204,8 @@ class _AttendancePageState extends State<AttendancePage> {
                           color:
                               present ? AcademyColors.green : Colors.redAccent),
                       title: Text(DateFormat('EEE, d MMM yyyy').format(date)),
-                      subtitle: Text('${record['status'] ?? ''}\nEntry: ${entry == null ? '—' : DateFormat('h:mm a').format(entry.toLocal())}  •  Exit: ${exit == null ? '—' : DateFormat('h:mm a').format(exit.toLocal())}'),
+                      subtitle: Text(
+                          '${record['status'] ?? ''}\nEntry: ${entry == null ? '—' : DateFormat('h:mm a').format(entry.toLocal())}  •  Exit: ${exit == null ? '—' : DateFormat('h:mm a').format(exit.toLocal())}'),
                       isThreeLine: true,
                     ));
                   }),
@@ -543,7 +548,7 @@ class _TestsPageState extends State<TestsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Written Preparation'), actions: [
+        appBar: AppBar(title: const Text('Test'), actions: [
           IconButton(
               onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const ResultHistoryPage())),
@@ -577,6 +582,12 @@ class _TestsPageState extends State<TestsPage> {
                     final closed = ends != null && now.isAfter(ends);
                     final inProgress =
                         attempt is Map && attempt['status'] == 'in_progress';
+                    final retryAt = DateTime.tryParse(
+                            test['retryAvailableAt']?.toString() ?? '')
+                        ?.toLocal();
+                    final waitingForRetake =
+                        submitted && retryAt != null && now.isBefore(retryAt);
+                    final practiceAvailable = test['practiceAvailable'] == true;
                     final canStart = test['canStart'] == true ||
                         (test['canStart'] == null &&
                             starts != null &&
@@ -599,33 +610,46 @@ class _TestsPageState extends State<TestsPage> {
                               color: AcademyColors.green)),
                       title: Text(test['title'] ?? 'Test'),
                       subtitle: Text(
-                          '${test['questionCount'] ?? 0} questions • ${test['duration'] ?? 0} min\nStarts: $startLabel\nEnds: $endLabel${(test['description'] ?? '').toString().isEmpty ? '' : '\n${test['description']}'}'),
+                          '${test['questionCount'] ?? 0} questions • ${test['duration'] ?? 0} min\nStarts: $startLabel\nEnds: $endLabel${submitted ? '\nOfficial result: ${attempt['obtainedMarks'] ?? 0} • ${attempt['percentage'] ?? 0}%${waitingForRetake ? '\nPractice unlocks: ${DateFormat('dd MMM, hh:mm a').format(retryAt)}' : practiceAvailable ? '\nPractice available • practice scores are not saved' : ''}' : ''}${(test['description'] ?? '').toString().isEmpty ? '' : '\n${test['description']}'}'),
                       trailing: FilledButton(
-                        onPressed: submitted
+                        onPressed: submitted && !practiceAvailable
                             ? () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                       builder: (_) =>
                                           const ResultHistoryPage()),
                                 )
-                            : !canStart
-                                ? null
-                                : () => Navigator.push(
+                            : submitted && practiceAvailable
+                                ? () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                           builder: (_) => ExamPage(
-                                              test: Map<String, dynamic>.from(
-                                                  test))),
-                                    ).then((_) => reload()),
-                        child: Text(submitted
-                            ? 'Result'
-                            : closed
-                                ? 'Closed'
-                                : scheduled
-                                    ? 'Locked'
-                                    : canStart
-                                        ? (inProgress ? 'Resume' : 'Start')
-                                        : 'Locked'),
+                                                test: Map<String, dynamic>.from(
+                                                    test),
+                                                practiceMode: true,
+                                              )),
+                                    ).then((_) => reload())
+                                : !canStart
+                                    ? null
+                                    : () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) => ExamPage(
+                                                  test:
+                                                      Map<String, dynamic>.from(
+                                                          test))),
+                                        ).then((_) => reload()),
+                        child: Text(submitted && practiceAvailable
+                            ? 'Practice'
+                            : submitted
+                                ? 'Result'
+                                : closed
+                                    ? 'Closed'
+                                    : scheduled
+                                        ? 'Locked'
+                                        : canStart
+                                            ? (inProgress ? 'Resume' : 'Start')
+                                            : 'Locked'),
                       ),
                     ));
                   }).toList());
@@ -635,7 +659,8 @@ class _TestsPageState extends State<TestsPage> {
 
 class ExamPage extends StatefulWidget {
   final Map<String, dynamic> test;
-  const ExamPage({super.key, required this.test});
+  final bool practiceMode;
+  const ExamPage({super.key, required this.test, this.practiceMode = false});
   @override
   State<ExamPage> createState() => _ExamPageState();
 }
@@ -653,6 +678,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   int seconds = 0;
   int index = 0;
   DateTime? deadlineAt;
+  String? practiceToken;
 
   @override
   void initState() {
@@ -679,11 +705,12 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   Future<void> start() async {
     setState(() => sending = true);
     try {
-      final data = await context
-          .read<SessionProvider>()
-          .api
-          .post('/tests/${widget.test['_id']}/start');
+      final api = context.read<SessionProvider>().api;
+      final data = await api.post(widget.practiceMode
+          ? '/tests/${widget.test['_id']}/practice/start'
+          : '/tests/${widget.test['_id']}/start');
       questions = List<dynamic>.from(data['questions'] ?? []);
+      practiceToken = data['practiceToken']?.toString();
       final attempt = data['attempt'] is Map
           ? Map<String, dynamic>.from(data['attempt'])
           : <String, dynamic>{};
@@ -729,12 +756,13 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       .toList();
 
   void _scheduleDraftSave() {
+    if (widget.practiceMode) return;
     draftTimer?.cancel();
     draftTimer = Timer(const Duration(milliseconds: 500), _saveDraft);
   }
 
   Future<void> _saveDraft() async {
-    if (!started || !mounted) return;
+    if (!started || !mounted || widget.practiceMode) return;
     _draftDirty = true;
     if (_savingDraft) return;
     _savingDraft = true;
@@ -762,18 +790,25 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
     timer?.cancel();
     try {
       final payload = _answerPayload();
-      final result = await context
-          .read<SessionProvider>()
-          .api
-          .post('/tests/${widget.test['_id']}/submit', {'answers': payload});
+      final api = context.read<SessionProvider>().api;
+      final result = await api.post(
+        widget.practiceMode
+            ? '/tests/${widget.test['_id']}/practice/submit'
+            : '/tests/${widget.test['_id']}/submit',
+        widget.practiceMode
+            ? {'practiceToken': practiceToken, 'answers': payload}
+            : {'answers': payload},
+      );
       if (!mounted) return;
       await showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
-                title: const Text('Test submitted'),
+                title: Text(widget.practiceMode
+                    ? 'Practice complete'
+                    : 'Test submitted'),
                 content: Text(
-                    'Score: ${result['obtainedMarks']}/${result['totalMarks']}\nPercentage: ${result['percentage']}%${auto ? '\nTime is up — your answers were submitted.' : ''}'),
+                    'Score: ${result['obtainedMarks']}/${result['totalMarks']}\nPercentage: ${result['percentage']}%${auto ? widget.practiceMode ? '\nTime is up — practice is finished.' : '\nTime is up — your answers were submitted.' : ''}${widget.practiceMode ? '\nPractice only. This score and your answers are not saved.' : ''}'),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.popUntil(
@@ -792,7 +827,10 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(widget.test['title'] ?? 'Test')),
+        appBar: AppBar(
+            title: Text(widget.practiceMode
+                ? '${widget.test['title'] ?? 'Test'} • Practice'
+                : widget.test['title'] ?? 'Test')),
         body: !started
             ? _intro()
             : questions.isEmpty
@@ -821,12 +859,22 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                       const SizedBox(height: 10),
                       Text(widget.test['instructions'] ??
                           'Choose one answer per question. The test submits automatically when time expires.'),
+                      if (widget.practiceMode) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                            'Practice mode: your answers and score will not be saved.',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AcademyColors.green)),
+                      ],
                       const SizedBox(height: 20),
                       FilledButton(
                           onPressed: sending ? null : start,
                           child: sending
                               ? const CircularProgressIndicator()
-                              : const Text('Start Test')),
+                              : Text(widget.practiceMode
+                                  ? 'Start Practice'
+                                  : 'Start Test')),
                       if (error != null)
                         Text(error!, style: const TextStyle(color: Colors.red)),
                     ],
@@ -884,8 +932,13 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
               child: const Text('Next'))
         else
           FilledButton(
-              onPressed: sending ? null : () => submit(),
-              child: Text(sending ? 'Submitting…' : 'Submit Test')),
+            onPressed: sending ? null : () => submit(),
+            child: Text(sending
+                ? 'Submitting…'
+                : widget.practiceMode
+                    ? 'Finish Practice'
+                    : 'Submit Test'),
+          ),
       ]),
     ]);
   }
@@ -967,7 +1020,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                             color: AcademyColors.green)),
                     title: Text(test is Map ? test['title'] ?? 'Test' : 'Test'),
                     subtitle: Text(
-                        '${test is Map && test['batchId'] is Map ? '${test['batchId']['name']} • ' : ''}${submittedAt == null ? '' : DateFormat('d MMM yyyy, h:mm a').format(submittedAt.toLocal())} • ${result['attempted'] ?? 0} attempted${result['autoSubmitted'] == true ? ' • Auto-submitted' : ''}'),
+                        '${test is Map && test['batchId'] is Map ? '${test['batchId']['name']} • ' : ''}Attempt ${result['attemptNumber'] ?? 1} • ${submittedAt == null ? '' : DateFormat('d MMM yyyy, h:mm a').format(submittedAt.toLocal())} • ${result['attempted'] ?? 0} attempted${result['autoSubmitted'] == true ? ' • Auto-submitted' : ''}'),
                     trailing: Text(
                         '${result['obtainedMarks'] ?? 0}/${result['totalMarks'] ?? 0}\n${result['percentage'] ?? 0}%',
                         textAlign: TextAlign.center,
