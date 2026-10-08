@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
@@ -63,7 +64,11 @@ class _AdminContentPageState extends State<AdminContentPage> {
   }
 
   Future<void> uploadMedia(String kind) async {
-    final picked = await FilePicker.platform.pickFiles(type: kind == 'video' ? FileType.video : FileType.any);
+    final picked = await FilePicker.platform.pickFiles(
+      type: kind == 'video' ? FileType.video : FileType.any,
+      allowMultiple: false,
+      withData: false,
+    );
     final path = picked?.files.single.path;
     if (path == null) return;
     final title = TextEditingController(text: picked!.files.single.name.split('.').first);
@@ -87,7 +92,16 @@ class _AdminContentPageState extends State<AdminContentPage> {
     if (values == null || (values['title'] ?? '').length < 2) return;
     setState(() { uploading = true; progress = 0; });
     try {
-      final result = await context.read<SessionProvider>().api.postMultipart('/content/media', {...values, 'kind': kind}, file: File(path), fileField: 'file', timeout: const Duration(minutes: 15), onProgress: (sent, total) => setState(() => progress = total == 0 ? 0 : sent / total));
+      final result = await context.read<SessionProvider>().api.postMultipart(
+        '/content/media',
+        {...values, 'kind': kind},
+        file: File(path),
+        fileField: 'file',
+        contentType: kind == 'video' ? MediaType('video', 'mp4') : null,
+        timeout: const Duration(minutes: 15),
+        onProgress: (sent, total) => setState(
+            () => progress = total == 0 ? 0 : sent / total),
+      );
       reload();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${kind == 'video' ? 'Video' : 'File'} uploaded. ${result['notificationsSent'] ?? 0} students notified.')));
     } catch (e) {
@@ -140,15 +154,57 @@ class _AdminContentPageState extends State<AdminContentPage> {
 class _MediaTile extends StatelessWidget {
   final dynamic item;
   const _MediaTile(this.item);
+
+  Future<void> _delete(BuildContext context, Map<String, dynamic> map) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete ${map['kind'] == 'video' ? 'video' : 'file'}?'),
+        content: Text('Delete “${map['title'] ?? ''}” permanently?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<SessionProvider>().api.delete('/content/media/${map['_id']}');
+      if (!context.mounted) return;
+      context.findAncestorStateOfType<_AdminContentPageState>()?.reload();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Upload deleted')));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final map = Map<String, dynamic>.from(item as Map);
     final video = map['kind'] == 'video';
+    final isAdminPage = context.findAncestorStateOfType<_AdminContentPageState>() != null;
     return Card(child: ListTile(
       leading: Icon(video ? Icons.video_library : Icons.insert_drive_file, color: AcademyColors.green),
       title: Text(map['title'] ?? ''),
       subtitle: Text('${map['description'] ?? ''}\n${_mediaDate(map['publishedAt'])}'),
       isThreeLine: true,
+      trailing: isAdminPage
+          ? IconButton(
+              tooltip: 'Delete upload',
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _delete(context, map),
+            )
+          : null,
       onTap: () => launchUrl(Uri.parse(map['url'].toString()), mode: LaunchMode.externalApplication),
     ));
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
@@ -34,7 +35,8 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> restore() async {
-    await loadSettings();
+    // Branding/settings should never block the first screen from rendering.
+    unawaited(loadSettings());
     try {
       final pending = await _storage.read(key: 'academy.pending_application');
       final password = await _storage.read(key: 'academy.pending_password');
@@ -60,6 +62,10 @@ class SessionProvider extends ChangeNotifier {
       return;
     }
     api.token = saved;
+    // Show the login screen immediately while the saved session is checked.
+    // If the token is valid, the listener will switch to the app shell below.
+    restoring = false;
+    notifyListeners();
     for (var attempt = 0; attempt < 3 && user == null; attempt++) {
       try {
         final data = await api.get('/auth/me');

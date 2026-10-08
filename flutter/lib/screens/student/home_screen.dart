@@ -100,6 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
       const SizedBox(height: 10),
       _WideAction('Create Test', 'Build and manage tests', Icons.description_outlined, const Color(0xFFB68A08), () => _open(const TestManagementPage())),
       const SizedBox(height: 10),
+      _WideAction('Test Results', 'View submitted results batch by batch', Icons.assessment_outlined, const Color(0xFF1688C7), () => _open(const AdminResultsPage())),
+      const SizedBox(height: 10),
       _WideAction('Schedule Training', 'Plan and manage training sessions', Icons.calendar_month_rounded, const Color(0xFF15558A), () => _open(const TrainingAdminPage())),
       const SizedBox(height: 10),
       _WideAction('Student Approvals', 'Review verified account requests', Icons.how_to_reg_outlined, const Color(0xFFB68A08), () => _open(const StudentApprovalsPage())),

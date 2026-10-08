@@ -1118,10 +1118,11 @@ class _TestManagementPageState extends State<TestManagementPage> {
     final existingBatchId = existing?['batchId'] is Map
         ? existing!['batchId']['_id']?.toString()
         : existing?['batchId']?.toString();
-    String? batchId = activeBatches
-            .any((batch) => batch['_id']?.toString() == existingBatchId)
-        ? existingBatchId
-        : activeBatches.first['_id']?.toString();
+    String? batchId = existing == null
+        ? ''
+        : activeBatches.any((batch) => batch['_id']?.toString() == existingBatchId)
+            ? existingBatchId
+            : '';
     DateTime start =
         DateTime.tryParse(existing?['startTime']?.toString() ?? '') ??
             DateTime.now().add(const Duration(hours: 1));
@@ -1157,16 +1158,16 @@ class _TestManagementPageState extends State<TestManagementPage> {
                   DropdownButtonFormField<String>(
                     initialValue: batchId,
                     decoration:
-                        const InputDecoration(labelText: 'Target batch *'),
-                    items: activeBatches
-                        .map((batch) => DropdownMenuItem<String>(
-                              value: batch['_id'].toString(),
-                              child: Text(batch['name']?.toString() ?? 'Batch'),
-                            ))
-                        .toList(),
+                        const InputDecoration(labelText: 'Target batch'),
+                    items: [
+                      const DropdownMenuItem<String>(value: '', child: Text('All batches')),
+                      ...activeBatches.map((batch) => DropdownMenuItem<String>(
+                            value: batch['_id'].toString(),
+                            child: Text(batch['name']?.toString() ?? 'Batch'),
+                          )),
+                    ],
                     onChanged: (value) => update(() => batchId = value),
-                    validator: (value) =>
-                        value == null ? 'Select a batch' : null,
+                    validator: (_) => null,
                   ),
                   TextFormField(
                     controller: duration,
@@ -1245,7 +1246,7 @@ class _TestManagementPageState extends State<TestManagementPage> {
                         style: TextStyle(fontSize: 11)),
                   ),
                   const Text(
-                      'After saving, add as many four-option questions as needed, then publish to notify this batch.',
+                      'After saving, add questions, then publish. Select All batches to show it to every student.',
                       style: TextStyle(fontSize: 12)),
                 ]),
               ),
@@ -1266,7 +1267,9 @@ class _TestManagementPageState extends State<TestManagementPage> {
                 Navigator.pop(dialogContext, {
                   'title': title.text.trim(),
                   'description': description.text.trim(),
-                  'batchId': batchId!,
+                  // Send null explicitly so an existing batch-specific test
+                  // can be changed to All batches during edit.
+                  'batchId': batchId == null || batchId!.isEmpty ? null : batchId,
                   'duration': int.parse(duration.text),
                   'startTime': start.toUtc().toIso8601String(),
                   'endTime': end.toUtc().toIso8601String(),

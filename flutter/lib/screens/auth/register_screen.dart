@@ -17,7 +17,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     for (final key in [
       'name', 'email', 'phone', 'password', 'fatherName', 'motherName',
       'parentPhone', 'address', 'village', 'post', 'policeStation', 'district',
-      'state', 'postalCode', 'dateOfBirth', 'heightCm', 'weightKg', 'chestCm'
+      'state', 'postalCode', 'aadhaarNumber', 'dateOfBirth', 'heightCm',
+      'weightKg', 'chestCm'
     ]) key: TextEditingController(),
   };
   List<dynamic> batches = [];
@@ -121,17 +122,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _field(String key, String label,
           {bool required = false,
           TextInputType? type,
-          bool secret = false}) => Padding(
+          bool secret = false,
+          String? Function(String?)? validator}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: TextFormField(
           controller: fields[key],
           obscureText: secret,
           keyboardType: type,
-          validator: required
+          validator: validator ?? (required
               ? (value) => value == null || value.trim().isEmpty
                   ? 'Required'
                   : null
-              : null,
+              : null),
           decoration: InputDecoration(labelText: label),
         ),
       );
@@ -175,6 +177,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _field('district', 'District'),
           _field('state', 'State'),
           _field('postalCode', 'Postal code'),
+          _field('aadhaarNumber', 'Aadhaar number (12 digits)',
+              type: TextInputType.number,
+              validator: (value) {
+                final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+                return digits.isEmpty || digits.length == 12
+                    ? null
+                    : 'Enter all 12 digits';
+              }),
           Row(children: [
             Expanded(
                 child: _field('heightCm', 'Height cm',

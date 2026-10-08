@@ -340,6 +340,42 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
         total <= 0 ? 0 : (sent / total).clamp(0.0, 1.0).toDouble());
   }
 
+  Future<void> _deletePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete student photo?'),
+        content: const Text('The uploaded profile photo will be removed.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete photo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context
+          .read<SessionProvider>()
+          .api
+          .delete('/students/${widget.studentId}/photo');
+      if (!mounted) return;
+      reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Student photo deleted')));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
   DateTime? _date(dynamic value) =>
       DateTime.tryParse(value?.toString() ?? '')?.toLocal();
 
@@ -722,6 +758,12 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
                             icon: const Icon(Icons.edit_outlined),
                             label: const Text('Edit student details'),
                           ),
+                          if (photo.isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: _uploadingPhoto ? null : _deletePhoto,
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Delete photo'),
+                            ),
                           OutlinedButton.icon(
                             onPressed: _uploadingPhoto || _resettingPassword
                                 ? null
@@ -893,6 +935,9 @@ Future<Map<String, dynamic>?> showStudentAdmissionForm(
   final user = initial?['userId'] is Map
       ? Map<String, dynamic>.from(initial!['userId'])
       : <String, dynamic>{};
+  final feeSummary = initial?['feeSummary'] is Map
+      ? Map<String, dynamic>.from(initial!['feeSummary'])
+      : <String, dynamic>{};
   final batchValue = initial?['batchId'] is Map
       ? initial!['batchId']['_id']?.toString()
       : initial?['batchId']?.toString();
@@ -930,8 +975,10 @@ Future<Map<String, dynamic>?> showStudentAdmissionForm(
     'aadhaarNumber': TextEditingController(
         text: initial?['aadhaarNumber']?.toString() ?? ''),
     'course': TextEditingController(text: initial?['course']?.toString() ?? ''),
-    'totalFees': TextEditingController(text: '0'),
-    'paidAmount': TextEditingController(text: '0'),
+    'totalFees': TextEditingController(
+        text: '${feeSummary['totalFees'] ?? 0}'),
+    'paidAmount': TextEditingController(
+        text: '${feeSummary['paidAmount'] ?? 0}'),
   };
   final formKey = GlobalKey<FormState>();
   final picker = ImagePicker();
@@ -1154,7 +1201,7 @@ Future<Map<String, dynamic>?> showStudentAdmissionForm(
                       if (picked != null) update(() => joining = picked);
                     },
                   ),
-                  if (!isEditing) ...[
+                  ...[
                     gap(),
                     Row(children: [
                       Expanded(
@@ -1185,7 +1232,7 @@ Future<Map<String, dynamic>?> showStudentAdmissionForm(
                   if (isEditing) ...[
                     const SizedBox(height: 10),
                     const Text(
-                        'Use Fees Management to add a fee ledger or record payments; payment history is kept intact.',
+                        'You can edit the total and paid fee here. Payment history is kept intact.',
                         style: TextStyle(
                             fontSize: 12, color: AcademyColors.muted)),
                     const SizedBox(height: 8),
@@ -1238,10 +1285,8 @@ Future<Map<String, dynamic>?> showStudentAdmissionForm(
                 'dateOfBirth': dob?.toUtc().toIso8601String() ?? '',
                 'photo': photo,
                 if (resetPassword) 'resetPasswordToPhone': true,
-                if (!isEditing)
-                  'totalFees': controllers['totalFees']!.text.trim(),
-                if (!isEditing)
-                  'paidAmount': controllers['paidAmount']!.text.trim(),
+                'totalFees': controllers['totalFees']!.text.trim(),
+                'paidAmount': controllers['paidAmount']!.text.trim(),
               };
               Navigator.pop(dialogContext, values);
             },

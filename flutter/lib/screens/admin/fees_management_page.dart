@@ -637,13 +637,19 @@ class _FeesManagementPageState extends State<FeesManagementPage> {
                   final remaining =
                       num.tryParse('${fee['remainingAmount'] ?? ''}') ??
                           (total - paid).clamp(0, total);
+                  final photo = (student['photo'] ?? '').toString();
+                  final hasFeeRecord = fee['_id']?.toString().isNotEmpty == true;
                   return Card(
                     child: ListTile(
                       isThreeLine: true,
-                      leading: const CircleAvatar(
+                      leading: CircleAvatar(
                         backgroundColor: AcademyColors.mint,
-                        child: Icon(Icons.account_balance_wallet_outlined,
-                            color: AcademyColors.green),
+                        backgroundImage:
+                            photo.startsWith('http') ? NetworkImage(photo) : null,
+                        child: photo.isEmpty
+                            ? const Icon(Icons.account_balance_wallet_outlined,
+                                color: AcademyColors.green)
+                            : null,
                       ),
                       title: Text(admin
                           ? (user['name']?.toString() ?? 'Student')
@@ -651,10 +657,11 @@ class _FeesManagementPageState extends State<FeesManagementPage> {
                       onTap: () => showPaymentHistory(fee),
                       subtitle: Text(
                         '${student['studentId'] ?? ''}${feeBatch == null ? '' : ' • $feeBatch'}\n'
+                        '${hasFeeRecord ? '' : 'No fee record • '}'
                         'Total ₹$total • Paid ₹$paid • Due ₹$remaining\n'
                         'Status: ${(fee['status'] ?? 'due').toString().toUpperCase()}',
                       ),
-                      trailing: admin
+                      trailing: admin && hasFeeRecord
                           ? PopupMenuButton<String>(
                               tooltip: 'Fee actions',
                               onSelected: (action) {

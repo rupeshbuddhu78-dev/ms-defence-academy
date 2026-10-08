@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
@@ -10,7 +11,7 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.initialize();
+  unawaited(NotificationService.instance.initialize());
   runApp(ChangeNotifierProvider(
       create: (_) => SessionProvider()..restore(), child: const AcademyApp()));
 }

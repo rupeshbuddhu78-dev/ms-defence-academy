@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../core/constants/app_constants.dart';
 
 class ApiException implements Exception {
@@ -15,7 +16,7 @@ class ApiException implements Exception {
 
 class ApiClient {
   String? token;
-  static const _requestTimeout = Duration(seconds: 75);
+  static const _requestTimeout = Duration(seconds: 15);
 
   Uri _uri(String path, [Map<String, String>? query]) =>
       Uri.parse('${AppConstants.apiBaseUrl}$path')
@@ -52,6 +53,7 @@ class ApiClient {
     Map<String, String> fields, {
     File? file,
     String fileField = 'photo',
+    MediaType? contentType,
     void Function(int sent, int total)? onProgress,
     Duration timeout = const Duration(minutes: 10),
   }) async {
@@ -61,8 +63,11 @@ class ApiClient {
       if (token != null) request.headers['Authorization'] = 'Bearer $token';
       request.fields.addAll(fields);
       if (file != null) {
-        request.files
-            .add(await http.MultipartFile.fromPath(fileField, file.path));
+        request.files.add(await http.MultipartFile.fromPath(
+          fileField,
+          file.path,
+          contentType: contentType,
+        ));
       }
       final body = request.finalize();
       final total = request.contentLength;
@@ -71,11 +76,14 @@ class ApiClient {
         ..headers.addAll(request.headers);
       final responseFuture = client.send(upload).timeout(timeout);
       var sent = 0;
-      onProgress?.call(sent, total);
+      // Report bytes as they are written. Do not show 100% until the entire
+      // multipart body has been sent, which avoids the old instant-100% UI.
+      onProgress?.call(0, total);
       await for (final chunk in body) {
         upload.sink.add(chunk);
         sent += chunk.length;
-        onProgress?.call(sent.clamp(0, total).toInt(), total);
+        final reported = total > 0 ? sent.clamp(0, total).toInt() : sent;
+        onProgress?.call(reported, total);
       }
       await upload.sink.close();
       onProgress?.call(total, total);
@@ -85,7 +93,7 @@ class ApiClient {
       return _decode(response);
     } on TimeoutException {
       throw ApiException(
-        'Photo upload timed out. Check your connection and try again.',
+        'Media upload timed out. Check your connection and try again.',
       );
     } on SocketException {
       throw ApiException(

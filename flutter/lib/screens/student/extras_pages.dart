@@ -32,7 +32,7 @@ class _NoticesPageState extends State<NoticesPage> {
   void reload() => setState(
       () => future = context.read<SessionProvider>().api.get('/notices'));
 
-  Future<void> addNotice() async {
+  Future<void> addNotice([Map<String, dynamic>? initial]) async {
     final api = context.read<SessionProvider>().api;
     List<dynamic> batches;
     try {
@@ -46,16 +46,25 @@ class _NoticesPageState extends State<NoticesPage> {
     final active = batches
         .where((batch) => batch is Map && batch['status'] == 'active')
         .toList();
-    final title = TextEditingController();
-    final description = TextEditingController();
+    final existingBatchId = initial?['batchId'] is Map
+        ? initial!['batchId']['_id']?.toString()
+        : initial?['batchId']?.toString();
+    if (existingBatchId != null &&
+        existingBatchId.isNotEmpty &&
+        !active.any((batch) => batch['_id']?.toString() == existingBatchId)) {
+      final oldBatch = batches.where((batch) => batch['_id']?.toString() == existingBatchId);
+      if (oldBatch.isNotEmpty) active.insert(0, oldBatch.first);
+    }
+    final title = TextEditingController(text: initial?['title']?.toString() ?? '');
+    final description = TextEditingController(text: initial?['description']?.toString() ?? '');
     final form = GlobalKey<FormState>();
-    String batchId = '';
-    String priority = 'normal';
+    String batchId = existingBatchId ?? '';
+    String priority = initial?['priority']?.toString() ?? 'normal';
     final values = await showDialog<Map<String, String>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
-          title: const Text('New academy notice'),
+          title: Text(initial == null ? 'New academy notice' : 'Edit academy notice'),
           content: Form(
             key: form,
             child: SingleChildScrollView(
@@ -118,7 +127,7 @@ class _NoticesPageState extends State<NoticesPage> {
                   if (batchId.isNotEmpty) 'batchId': batchId,
                 });
               },
-              child: const Text('Publish'),
+              child: Text(initial == null ? 'Publish' : 'Save changes'),
             ),
           ],
         ),
@@ -126,20 +135,49 @@ class _NoticesPageState extends State<NoticesPage> {
     );
     if (values == null) return;
     try {
-      final result = await api.post('/notices', values);
+      final result = initial == null
+          ? await api.post('/notices', values)
+          : await api.patch('/notices/${initial['_id']}', values);
       reload();
       if (mounted) {
         final warning = result is Map ? result['notificationWarning'] : null;
         final sent = result is Map ? result['notificationsSent'] ?? 0 : 0;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(warning?.toString() ??
-              'Notice published. $sent students notified.'),
+          content: Text(initial == null
+              ? warning?.toString() ?? 'Notice published. $sent students notified.'
+              : 'Notice updated successfully.'),
         ));
       }
     } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> deleteNotice(Map<String, dynamic> notice) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete notice?'),
+        content: Text('Delete “${notice['title'] ?? 'this notice'}” and its notifications?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<SessionProvider>().api.delete('/notices/${notice['_id']}');
+      reload();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notice deleted.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -183,6 +221,17 @@ class _NoticesPageState extends State<NoticesPage> {
                           title: Text(notice['title'] ?? ''),
                           subtitle: Text(
                               '${notice['description'] ?? ''}\n${notice['batchId'] is Map ? notice['batchId']['name'] : 'All batches'} • ${_formatLocalDateTime(notice['publishedAt'])}'),
+                          trailing: admin
+                              ? PopupMenuButton<String>(
+                                  onSelected: (value) => value == 'edit'
+                                      ? addNotice(Map<String, dynamic>.from(notice))
+                                      : deleteNotice(Map<String, dynamic>.from(notice)),
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                  ],
+                                )
+                              : null,
                         )))
                     .toList());
           }),
@@ -440,8 +489,35 @@ class _NotificationsPageState extends State<NotificationsPage> {
     super.dispose();
   }
 
+  Future<void> deleteNotification(Map<String, dynamic> notification) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete notification?'),
+        content: const Text('This notification will be removed from the admin inbox.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<SessionProvider>().api.delete('/notifications/${notification['_id']}');
+      reload();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final admin = context.watch<SessionProvider>().isAdmin;
+    return Scaffold(
         appBar: AppBar(title: const Text('Notifications'), actions: [
           IconButton(onPressed: reload, icon: const Icon(Icons.refresh))
         ]),
@@ -480,10 +556,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             title: Text(notification['title'] ?? ''),
                             subtitle: Text(
                                 '${notification['message'] ?? ''}${_formatLocalDateTime(notification['createdAt']).isEmpty ? '' : '\n${_formatLocalDateTime(notification['createdAt'])}'}'),
-                            trailing: notification['readAt'] == null
-                                ? const Icon(Icons.circle,
-                                    size: 9, color: AcademyColors.green)
-                                : null,
+                            trailing: admin
+                                ? PopupMenuButton<String>(
+                                    onSelected: (_) => deleteNotification(Map<String, dynamic>.from(notification)),
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                    ],
+                                  )
+                                : notification['readAt'] == null
+                                    ? const Icon(Icons.circle, size: 9, color: AcademyColors.green)
+                                    : null,
                             onTap: () async {
                               if (notification['readAt'] == null) {
                                 await context.read<SessionProvider>().api.patch(
@@ -498,4 +580,5 @@ class _NotificationsPageState extends State<NotificationsPage> {
               );
             }),
       );
+  }
 }

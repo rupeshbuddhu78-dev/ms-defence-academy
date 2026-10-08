@@ -121,9 +121,6 @@ class _AdminAttendancePageState extends State<AdminAttendancePage> {
               final date = _calendarDate(item['date']);
               if (date != null) eventMap[date] = item;
             }
-            final summary = monthData['summary'] is Map
-                ? Map<String, dynamic>.from(monthData['summary'])
-                : <String, dynamic>{};
             return ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
               children: [
@@ -199,20 +196,27 @@ class _AdminAttendancePageState extends State<AdminAttendancePage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                      child: _summary('Marked', '${summary['total'] ?? 0}')),
-                  const SizedBox(width: 7),
-                  Expanded(
-                      child: _summary('Present', '${summary['present'] ?? 0}')),
-                  const SizedBox(width: 7),
-                  Expanded(
-                      child: _summary('Absent', '${summary['absent'] ?? 0}')),
-                  const SizedBox(width: 7),
-                  Expanded(
-                      child:
-                          _summary('Rate', '${summary['percentage'] ?? 0}%')),
-                ]),
+                FutureBuilder<dynamic>(
+                  future: dayFuture,
+                  builder: (context, daySummarySnapshot) {
+                    final dayData = daySummarySnapshot.data is Map
+                        ? Map<String, dynamic>.from(daySummarySnapshot.data)
+                        : <String, dynamic>{};
+                    final daySummary = dayData['summary'] is Map
+                        ? Map<String, dynamic>.from(dayData['summary'])
+                        : <String, dynamic>{};
+                    final marked = daySummary['total'] ?? daySummary['totalClasses'] ?? 0;
+                    return Row(children: [
+                      Expanded(child: _summary('Marked today', '$marked')),
+                      const SizedBox(width: 7),
+                      Expanded(child: _summary('Present', '${daySummary['present'] ?? 0}')),
+                      const SizedBox(width: 7),
+                      Expanded(child: _summary('Absent', '${daySummary['absent'] ?? 0}')),
+                      const SizedBox(width: 7),
+                      Expanded(child: _summary('Rate today', '${daySummary['percentage'] ?? 0}%')),
+                    ]);
+                  },
+                ),
                 const SizedBox(height: 16),
                 Text(DateFormat('EEEE, dd MMMM yyyy').format(selectedDay),
                     style: const TextStyle(
