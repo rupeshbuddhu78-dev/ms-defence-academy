@@ -101,7 +101,7 @@ async function createTest(req, res) {
   const body = req.body || {};
   const title = String(body.title || '').trim();
   if (title.length < 2) throw new HttpError(400, 'Test title is required');
-  const batch = await activeBatch(body.batchId);
+  const batch = body.batchId ? await activeBatch(body.batchId) : null;
   const startTime = validDate(body.startTime, 'Test start time');
   const endTime = validDate(body.endTime, 'Test end time');
   if (endTime <= startTime) throw new HttpError(400, 'Test end time must be after its start time');
@@ -113,7 +113,7 @@ async function createTest(req, res) {
     title,
     description: String(body.description || ''),
     instructions: String(body.instructions || ''),
-    batchId: batch._id,
+    batchId: batch?._id || null,
     duration,
     startTime,
     endTime,
@@ -140,7 +140,7 @@ async function updateTest(req, res) {
   for (const key of ['description', 'instructions']) {
     if (body[key] !== undefined) test[key] = String(body[key] || '').trim();
   }
-  if (body.batchId !== undefined) test.batchId = (await activeBatch(body.batchId))._id;
+  if (body.batchId !== undefined) test.batchId = body.batchId ? (await activeBatch(body.batchId))._id : null;
   if (body.duration !== undefined) {
     const duration = Number(body.duration);
     if (!Number.isInteger(duration) || duration < 1 || duration > 300) {
@@ -166,7 +166,7 @@ async function listTests(req, res) {
     studentProfile = await StudentProfile.findOne({ userId: req.user.id }).select('_id batchId');
     if (!studentProfile || !studentProfile.batchId) return respond(res, []);
     // Keep future and expired published tests visible, but expose their lock state.
-    filter = { batchId: studentProfile.batchId, status: 'published' };
+    filter = { $or: [{ batchId: studentProfile.batchId }, { batchId: null }], status: 'published' };
   }
   const tests = await Test.find(filter).populate('batchId', 'name').sort({ startTime: 1 }).limit(200);
   const data = await Promise.all(tests.map(async test => {
@@ -249,7 +249,7 @@ async function getTest(req, res) {
   if (!test) throw new HttpError(404, 'Test not found');
   if (req.user.role === 'student') {
     const profile = await StudentProfile.findOne({ userId: req.user.id }).select('batchId');
-    if (!profile || test.status !== 'published' || String(test.batchId?._id) !== String(profile.batchId)) {
+    if (!profile || test.status !== 'published' || (test.batchId && String(test.batchId._id) !== String(profile.batchId))) {
       throw new HttpError(404, 'Test not found');
     }
     const now = new Date();
@@ -265,7 +265,7 @@ async function studentTestProfile(req, testId) {
   if (!mongoose.isValidObjectId(testId)) throw new HttpError(404, 'Test not found');
   const profile = await StudentProfile.findOne({ userId: req.user.id }).select('_id batchId');
   const test = await Test.findById(testId).select('batchId');
-  if (!profile || !test || String(test.batchId) !== String(profile.batchId)) {
+  if (!profile || !test || (test.batchId && String(test.batchId) !== String(profile.batchId))) {
     throw new HttpError(404, 'Test not found');
   }
   return profile;
@@ -304,7 +304,7 @@ async function listResults(req, res) {
     }
     if (req.query.batchId) {
       if (!mongoose.isValidObjectId(req.query.batchId)) throw new HttpError(400, 'Batch ID is invalid');
-      const tests = await Test.find({ batchId: req.query.batchId }).select('_id').lean();
+      const tests = await Test.find({ $or: [{ batchId: req.query.batchId }, { batchId: null }] }).select('_id').lean();
       const testIds = tests.map(test => test._id);
       filter.testId = filter.testId
         ? { $in: testIds.filter(id => String(id) === String(filter.testId)) }
