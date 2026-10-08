@@ -56,19 +56,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: BoxDecoration(
                       color: AcademyColors.forest,
                       borderRadius: BorderRadius.circular(28),
-                      image: DecorationImage(
-                        image: backgroundUrl.startsWith('http')
-                            ? NetworkImage(backgroundUrl)
-                            : const AssetImage('assets/academy_hero_mobile.jpg')
-                                as ImageProvider,
-                        fit: BoxFit.cover,
-                        colorFilter: ColorFilter.mode(
-                            AcademyColors.forest.withValues(alpha: .48),
-                            BlendMode.darken),
-                      ),
                     ),
+                    clipBehavior: Clip.antiAlias,
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
+                        backgroundUrl.startsWith('http')
+                            ? Image.network(
+                                backgroundUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Image.asset(
+                                  'assets/academy_hero_mobile.jpg',
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Image.asset('assets/academy_hero_mobile.jpg',
+                                fit: BoxFit.cover),
+                        Container(
+                            color: AcademyColors.forest.withValues(alpha: .48)),
                         Positioned(
                           right: -20,
                           top: -35,
@@ -93,12 +98,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: logoUrl.startsWith('http')
-                                    ? Image.network(logoUrl, fit: BoxFit.contain)
-                                    : Image.asset('assets/academy_app_icon.png', fit: BoxFit.contain),
+                                    ? Image.network(
+                                        logoUrl,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) =>
+                                            Image.asset(
+                                          'assets/academy_app_icon.png',
+                                          fit: BoxFit.contain,
+                                        ),
+                                      )
+                                    : Image.asset('assets/academy_app_icon.png',
+                                        fit: BoxFit.contain),
                               ),
                               const SizedBox(height: 16),
-                              Text(appName.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                              Text(appName.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1)),
                               const SizedBox(height: 4),
                               const Text('DISCIPLINE • DEDICATION • SUCCESS',
                                   style: TextStyle(
@@ -167,12 +187,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordScreen())),
                       child: const Text('Forgot password?'),
                     ),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const RegisterScreen())),
                     icon: const Icon(Icons.person_add_alt_1),
                     label: const Text('CREATE STUDENT ACCOUNT'),
                   ),

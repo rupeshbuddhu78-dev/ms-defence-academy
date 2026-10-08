@@ -23,3 +23,11 @@
 ## Deploy
 
 Deploy the updated `backend/` source to the backend service and rebuild/release the Flutter app from the updated `flutter/` source. This package does not deploy to a live server or change production data by itself. Existing pending applications remain available for admin approval.
+
+## Branding and test schedule fix (v1.1.5)
+
+- Logo and background uploads now validate actual JPEG/JPG, PNG, and WebP file signatures instead of relying on inconsistent Android MIME labels. Branding uploads are capped at 12 MB.
+- Login and dashboard branding images now fall back to bundled artwork if a remote image cannot be decoded or fetched; the dashboard hero overlay was reduced so the uploaded background is visible.
+- Admins can reschedule a published test before any student attempt exists, including moving an overdue schedule into the future. Tests with attempts and explicitly closed tests remain protected. The student API recalculates availability from the new start time, so future tests stay locked until then.
+- The test date picker now accepts older existing dates without an out-of-range assertion.
+- Validation: backend suite **37 passed, 0 failed**; Flutter analyzer **no issues found**. APK build is recorded separately when complete.

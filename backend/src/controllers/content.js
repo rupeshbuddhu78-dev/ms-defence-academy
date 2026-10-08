@@ -23,7 +23,6 @@ async function updateBranding(req, res) {
 async function uploadBrandAsset(req, res) {
   const type = String(req.body.type || '').toLowerCase();
   if (!['logo', 'background'].includes(type)) throw new HttpError(400, 'Brand asset type must be logo or background');
-  if (!req.file.mimetype.startsWith('image/')) throw new HttpError(415, 'Logo and background must be an image');
   const uploaded = await cloudinary.uploadImage(req.file.buffer, `ms-defence-academy/branding/${type}`);
   const field = type === 'logo' ? 'logoUrl' : 'backgroundUrl';
   const idField = type === 'logo' ? 'logoPublicId' : 'backgroundPublicId';

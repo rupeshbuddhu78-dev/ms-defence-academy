@@ -8,6 +8,7 @@ const adminManagement = require('../controllers/admin-management');
 const security = require('../controllers/security');
 const content = require('../controllers/content');
 const { uploadMedia } = require('../middleware/mediaUpload');
+const { uploadBrandAsset } = require('../middleware/brandUpload');
 const { uploadPhoto } = require('../middleware/photoUpload');
 const registration = require('../controllers/registration');
 const applications = require('../controllers/applications');
@@ -29,7 +30,7 @@ router.post('/admin/applications/:id/review', authenticate, allowRoles('admin'),
 router.delete('/admin/applications/:id', authenticate, allowRoles('admin'), asyncHandler(applications.remove));
 router.get('/content/settings', asyncHandler(content.getSettings));
 router.patch('/content/settings', authenticate, allowRoles('admin'), asyncHandler(content.updateBranding));
-router.post('/content/settings/asset', authenticate, allowRoles('admin'), uploadMedia, asyncHandler(content.uploadBrandAsset));
+router.post('/content/settings/asset', authenticate, allowRoles('admin'), uploadBrandAsset, asyncHandler(content.uploadBrandAsset));
 router.get('/content/media', authenticate, asyncHandler(content.listMedia));
 router.post('/content/media', authenticate, allowRoles('admin'), uploadMedia, asyncHandler(content.uploadMedia));
 router.delete('/content/media/:id', authenticate, allowRoles('admin'), asyncHandler(content.deleteMedia));

@@ -1088,8 +1088,10 @@ class _TestManagementPageState extends State<TestManagementPage> {
     final date = await showDatePicker(
       context: pickerContext,
       initialDate: initial,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 1825)),
+      // Older published tests must remain editable/reschedulable without the
+      // date picker asserting that its initial date is outside the range.
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
     );
     if (date == null) return null;
     return DateTime(date.year, date.month, date.day);

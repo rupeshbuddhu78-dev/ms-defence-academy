@@ -316,7 +316,15 @@ class _Header extends StatelessWidget {
             child: Row(children: [
               logoUrl.startsWith('http')
                   ? Image.network(logoUrl,
-                      width: 48, height: 48, fit: BoxFit.contain)
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                            'assets/academy_app_icon.png',
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.contain,
+                          ))
                   : Image.asset('assets/academy_app_icon.png',
                       width: 48, height: 48),
               Container(
@@ -395,10 +403,17 @@ class _HeroCard extends StatelessWidget {
             height: 198,
             child: Stack(fit: StackFit.expand, children: [
               backgroundUrl.startsWith('http')
-                  ? Image.network(backgroundUrl, fit: BoxFit.cover)
+                  ? Image.network(
+                      backgroundUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        'assets/academy_hero_mobile.jpg',
+                        fit: BoxFit.cover,
+                      ),
+                    )
                   : Image.asset('assets/academy_hero_mobile.jpg',
                       fit: BoxFit.cover),
-              Container(color: AcademyColors.forest.withValues(alpha: .68)),
+              Container(color: AcademyColors.forest.withValues(alpha: .42)),
               Positioned(
                   right: -28,
                   bottom: -34,

@@ -12,6 +12,7 @@ const Notification = require('../models/Notification');
 const Fee = require('../models/Fee');
 const { HttpError } = require('../middleware/errors');
 const exams = require('../services/exams');
+const { canEditTestSchedule } = require('../services/test-scheduling');
 
 const respond = (res, data, status = 200) => res.status(status).json({ ok: true, data });
 
@@ -126,8 +127,11 @@ async function updateTest(req, res) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Test not found');
   const test = await Test.findById(req.params.id);
   if (!test) throw new HttpError(404, 'Test not found');
-  if (test.status === 'closed' || new Date() >= test.startTime || await TestAttempt.exists({ testId: test._id })) {
-    throw new HttpError(409, 'A test cannot be edited after it starts or has attempts');
+  const hasAttempts = Boolean(await TestAttempt.exists({ testId: test._id }));
+  if (!canEditTestSchedule({ status: test.status, hasAttempts })) {
+    throw new HttpError(409, test.status === 'closed'
+      ? 'Closed tests cannot be edited'
+      : 'This test already has student attempts and cannot be rescheduled');
   }
   const body = req.body || {};
   if (body.title !== undefined) {

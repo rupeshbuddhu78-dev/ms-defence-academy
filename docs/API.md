@@ -75,7 +75,7 @@ The individual admin payload includes `batchId`, `studentId`, `testDate`, option
 |---|---|---|---|
 | GET | `/tests` | Any | Admin list, or the student's batch's published tests including upcoming, open and closed schedules |
 | POST | `/tests` | Admin | Create a draft with batch, duration and start time; close time is calculated as start + duration |
-| PATCH | `/tests/:id` | Admin | Edit draft/published test title, description, batch, duration and start time (not after attempts exist); close time is recalculated |
+| PATCH | `/tests/:id` | Admin | Edit draft/published test title, description, batch, duration and start time until a student attempt exists; closed tests cannot be edited, and close time is recalculated |
 | GET | `/tests/:id` | Any | Test details; students may fetch questions only during the scheduled test window |
 | POST | `/tests/:id/questions` | Admin | Add another four-option MCQ with server-held `correctAnswer` index 0–3 and marks; no fixed question-count cap is imposed by the app |
 | PATCH | `/tests/:id/questions/bulk` | Admin | Add 1–100 validated four-option MCQs in a single request |
@@ -87,6 +87,8 @@ The individual admin payload includes `batchId`, `studentId`, `testDate`, option
 | POST | `/tests/:id/practice/start` | Student | After the first official result is at least 24 hours old, start a stateless practice session with a signed timer token |
 | POST | `/tests/:id/practice/submit` | Student | Score practice answers and return the score without storing the session, answers or result |
 | GET | `/tests/results` | Any | Student's own results, or admin results (optional `studentId`, `testId`, or `batchId`) with profile summary and score |
+
+Rescheduling a published test before any student starts it is allowed, including after its old start time has passed. Student availability is recalculated from the updated schedule, so a future start remains locked until that date/time.
 
 Question answer keys are stored in `Question.correctAnswer` with `select:false`; student-facing projections only select question text/options/marks/order. The first real attempt is the only attempt stored in `TestAttempt` and the only result shown in admin reports. Its deadline is the earlier of its duration or scheduled close time; a server sweep automatically submits it even if the student closes the app. After that result is 24 hours old, a student can use unlimited stateless practice sessions with a fresh duration each time. Practice answers and scores are computed in memory and returned to the student only; they are not stored in MongoDB or admin results. Students see upcoming tests as locked; the list refreshes periodically. Android does not permit the app to launch itself from the background at a scheduled time. Publishing, training schedules, and notices create persisted in-app notifications (not device push notifications).
 

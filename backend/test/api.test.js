@@ -311,7 +311,39 @@ test('training edit and delete endpoints reject unauthenticated callers', async 
 test('photo uploader recognizes a JPEG file signature independent of the filename', () => {
   const { matchesImageSignature } = require('../src/middleware/photoUpload');
   assert.equal(matchesImageSignature(Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), true);
+  assert.equal(matchesImageSignature(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0])), true);
+  assert.equal(matchesImageSignature(Buffer.from('RIFF0000WEBP')), true);
   assert.equal(matchesImageSignature(Buffer.from('not-an-image-file')), false);
+});
+
+test('branding uploader accepts supported image bytes independent of reported MIME type', async () => {
+  const express = require('express');
+  const { uploadBrandAsset } = require('../src/middleware/brandUpload');
+  const probe = express();
+  probe.post('/asset', uploadBrandAsset, (_req, res) => res.sendStatus(204));
+  probe.use((error, _req, res, _next) => res.status(error.status || 500).json({ error: error.message }));
+  const jpeg = await request(probe).post('/asset').attach(
+    'file', Buffer.from([0xff, 0xd8, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    { filename: 'logo.jpeg', contentType: 'application/octet-stream' },
+  );
+  const png = await request(probe).post('/asset').attach(
+    'file', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]),
+    { filename: 'hero.png', contentType: 'application/octet-stream' },
+  );
+  const invalid = await request(probe).post('/asset').attach(
+    'file', Buffer.from('not an image'), { filename: 'logo.jpeg', contentType: 'image/jpeg' },
+  );
+  assert.equal(jpeg.status, 204);
+  assert.equal(png.status, 204);
+  assert.equal(invalid.status, 415);
+});
+
+test('published tests can be moved to a new date until a student attempt exists', () => {
+  const { canEditTestSchedule } = require('../src/services/test-scheduling');
+  assert.equal(canEditTestSchedule({ status: 'draft', hasAttempts: false }), true);
+  assert.equal(canEditTestSchedule({ status: 'published', hasAttempts: false }), true);
+  assert.equal(canEditTestSchedule({ status: 'published', hasAttempts: true }), false);
+  assert.equal(canEditTestSchedule({ status: 'closed', hasAttempts: false }), false);
 });
 
 test('password change requires a valid authenticated session', async () => {
