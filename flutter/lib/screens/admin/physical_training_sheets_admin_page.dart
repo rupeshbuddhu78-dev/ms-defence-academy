@@ -257,6 +257,14 @@ class _PhysicalTrainingSheetsAdminPageState
                       .toList(),
                   onChanged: (value) => updateDialog(() {
                     if (value == null) return;
+                    final previousName = _testTemplates
+                        .firstWhere((item) => item['id'] == template)['name'];
+                    final nextName = _testTemplates
+                        .firstWhere((item) => item['id'] == value)['name'];
+                    if (titleController.text.trim() ==
+                        '$previousName Physical Test') {
+                      titleController.text = '$nextName Physical Test';
+                    }
                     template = value;
                     enabled
                       ..clear()
