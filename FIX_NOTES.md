@@ -38,4 +38,4 @@ Deploy the updated `backend/` source to the backend service and rebuild/release 
 - Existing result cards now expose an Edit action for the date, measurements/reps and coach notes. Student and batch association remain fixed while editing.
 - The API supports validated inclusive-start/exclusive-end date filters and an admin-only `PATCH /physical-training-results/:id` endpoint.
 - Batch physical marks sheets remain unchanged; OTP-related code and setup files were not changed.
-- Validation: backend suite **39 passed, 0 failed**; Flutter analyzer **no issues found**. Release APK build is verified separately below.
+- Validation: backend suite **39 passed, 0 failed**; Flutter analyzer **no issues found**. The universal release-mode APK is **75,097,142 bytes (71.62 MiB)**, version **1.1.6 / versionCode 8**, signature-verified, and contains `armeabi-v7a`, `arm64-v8a`, and `x86_64`; separate ABI APKs were also verified. It uses the repository's debug signing key for direct testing and is not a Play Store signing build.
