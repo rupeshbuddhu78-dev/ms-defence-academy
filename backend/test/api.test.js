@@ -151,8 +151,85 @@ test('test deletion endpoint rejects unauthenticated callers', async () => {
 test('physical training result endpoints require authentication and writes require admin', async () => {
   const list = await request(app).get('/api/physical-training-results');
   const create = await request(app).post('/api/physical-training-results').send({});
+  const edit = await request(app).patch('/api/physical-training-results/507f1f77bcf86cd799439011').send({});
   assert.equal(list.status, 401);
   assert.equal(create.status, 401);
+  assert.equal(edit.status, 401);
+});
+
+test('physical result calendar filters use a validated half-open date range', () => {
+  const { applyDateRange, normalizeMetrics } = require('../src/controllers/physical-training-results');
+  const filter = applyDateRange({}, {
+    from: '2026-10-01T00:00:00.000Z',
+    to: '2026-11-01T00:00:00.000Z',
+  });
+  assert.deepEqual(filter.testDate, {
+    $gte: new Date('2026-10-01T00:00:00.000Z'),
+    $lt: new Date('2026-11-01T00:00:00.000Z'),
+  });
+  assert.throws(() => applyDateRange({}, { from: 'not-a-date' }), /date range is invalid/);
+  assert.throws(() => applyDateRange({}, { from: '2026-11-01', to: '2026-10-01' }), /end after it starts/);
+  assert.deepEqual(normalizeMetrics({ runTimeSeconds: '330', pushUps: '' }), {
+    runTimeSeconds: 330,
+    pushUps: null,
+  });
+  assert.throws(() => normalizeMetrics({ pushUps: '1.5' }), /whole number/);
+  assert.deepEqual(normalizeMetrics({ pushUps: null }, { runTimeSeconds: 330 }), {
+    pushUps: null,
+  });
+  assert.throws(() => normalizeMetrics({ runTimeSeconds: null }, { runTimeSeconds: 330 }), /at least one physical test result/);
+});
+
+test('editing an individual physical result saves date and values without changing its student or batch', async () => {
+  const PhysicalTrainingResult = require('../src/models/PhysicalTrainingResult');
+  const { updateResult } = require('../src/controllers/physical-training-results');
+  const id = '507f1f77bcf86cd799439011';
+  const result = {
+    _id: id,
+    studentId: 'student-original',
+    batchId: 'batch-original',
+    runTimeSeconds: 330,
+    pushUps: 12,
+    testDate: new Date('2026-10-01T00:00:00.000Z'),
+    remarks: '',
+    saved: false,
+    async save() { this.saved = true; },
+    async populate() { return this; },
+  };
+  const previousFindById = PhysicalTrainingResult.findById;
+  let responseBody;
+  PhysicalTrainingResult.findById = async value => {
+    assert.equal(String(value), id);
+    return result;
+  };
+  const response = {
+    status(code) { this.statusCode = code; return this; },
+    json(payload) { responseBody = payload; return this; },
+  };
+  try {
+    await updateResult({
+      params: { id },
+      body: {
+        testDate: '2026-10-09T00:00:00.000Z',
+        runTimeSeconds: '420',
+        pushUps: '18',
+        remarks: 'Corrected entry',
+        studentId: 'student-other',
+        batchId: 'batch-other',
+      },
+    }, response);
+    assert.equal(result.saved, true);
+    assert.equal(result.runTimeSeconds, 420);
+    assert.equal(result.pushUps, 18);
+    assert.equal(result.testDate.toISOString(), '2026-10-09T00:00:00.000Z');
+    assert.equal(result.remarks, 'Corrected entry');
+    assert.equal(result.studentId, 'student-original');
+    assert.equal(result.batchId, 'batch-original');
+    assert.equal(response.statusCode, 200);
+    assert.equal(responseBody.ok, true);
+  } finally {
+    PhysicalTrainingResult.findById = previousFindById;
+  }
 });
 
 test('physical training result schema stores batch, individual metrics, date and recorder', () => {

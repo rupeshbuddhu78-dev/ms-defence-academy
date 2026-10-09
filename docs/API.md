@@ -60,14 +60,17 @@ Attendance duplicates for the same student/session/date are blocked by a MongoDB
 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| GET | `/physical-training-results` | Student / Admin | Students receive only their own records; admins may filter by `batchId` or `studentId` |
+| GET | `/physical-training-results` | Student / Admin | Students receive only their own records; admins may filter by `batchId`, `studentId`, `from` and `to` date/time |
 | POST | `/physical-training-results` | Admin | Record one student's physical assessment within a selected batch |
+| PATCH | `/physical-training-results/:id` | Admin | Edit a saved physical assessment's date, measurements, marks or remarks without changing its student/batch |
 | GET | `/physical-training-sheets` | Student / Admin | Students receive all physical marks sheets for their own batch only; admins may filter by `batchId` |
 | POST | `/physical-training-sheets` | Admin | Create a batch-wide marks sheet with selected template and enabled columns; one blank row is created per batch student |
 | PATCH | `/physical-training-sheets/:id/rows` | Admin | Save all/selected student rows; server totals the enabled numeric mark columns |
 | DELETE | `/physical-training-sheets/:id` | Admin | Permanently delete the selected shared sheet and its embedded student rows; separate individual physical records are retained |
 
 The individual admin payload includes `batchId`, `studentId`, `testDate`, optional `runTimeSeconds`, `beamReps`, `longJumpCm`, `highJumpCm`, `pushUps`, `sitUps`, `shuttleRunSeconds` and `remarks`. For public marks sheets, `columns` define enabled event measurements or pass/fail fields; a running event records distance in KM and the time taken. The server rejects event-wise marks and appends exactly one `Total Marks` field per student. `rows` carry values keyed by column ID, including that overall score. Sheet results are visible to students in the same batch, who see the full table with their own row highlighted. Students cannot query another batch or write results. The server calculates each row's overall total from its single marks value.
+
+The individual physical-results calendar loads one local month at a time using `from` (inclusive) and `to` (exclusive) ISO timestamps. Selecting a day narrows the list to that date; an admin can edit a saved record but cannot move it to another student or batch.
 
 ## Tests and results
 

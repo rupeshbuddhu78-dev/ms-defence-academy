@@ -7,4 +7,5 @@ const router = express.Router();
 router.use(authenticate);
 router.get('/', allowRoles('admin', 'student'), asyncHandler(controller.listResults));
 router.post('/', allowRoles('admin'), asyncHandler(controller.createResult));
+router.patch('/:id', allowRoles('admin'), asyncHandler(controller.updateResult));
 module.exports = router;

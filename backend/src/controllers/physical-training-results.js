@@ -15,6 +15,48 @@ const numericFields = {
   shuttleRunSeconds: { label: 'Shuttle run', max: 86400, integer: false },
 };
 
+function applyDateRange(filter, query = {}) {
+  const fromText = String(query.from || '').trim();
+  const toText = String(query.to || '').trim();
+  const from = fromText ? new Date(fromText) : null;
+  const to = toText ? new Date(toText) : null;
+  if ((fromText && Number.isNaN(from.getTime())) || (toText && Number.isNaN(to.getTime()))) {
+    throw new HttpError(400, 'Physical result date range is invalid');
+  }
+  if (from && to && from >= to) {
+    throw new HttpError(400, 'Physical result date range must end after it starts');
+  }
+  if (from || to) {
+    filter.testDate = {};
+    if (from) filter.testDate.$gte = from;
+    if (to) filter.testDate.$lt = to;
+  }
+  return filter;
+}
+
+function normalizeMetrics(body, existing = null) {
+  const metrics = {};
+  for (const [key, rule] of Object.entries(numericFields)) {
+    if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+    const raw = body[key];
+    if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+      metrics[key] = null;
+      continue;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > rule.max || (rule.integer && !Number.isInteger(value))) {
+      throw new HttpError(400, `${rule.label} must be a valid non-negative ${rule.integer ? 'whole number' : 'measurement'}`);
+    }
+    metrics[key] = value;
+  }
+  const hasMetric = Object.keys(numericFields).some(key =>
+    Object.prototype.hasOwnProperty.call(metrics, key)
+      ? metrics[key] !== null
+      : existing?.[key] !== null && existing?.[key] !== undefined);
+  if (!hasMetric) throw new HttpError(400, 'Enter at least one physical test result');
+  return metrics;
+}
+
 async function listResults(req, res) {
   const filter = {};
   if (req.user.role === 'student') {
@@ -31,6 +73,7 @@ async function listResults(req, res) {
       filter.studentId = req.query.studentId;
     }
   }
+  applyDateRange(filter, req.query);
   const records = await PhysicalTrainingResult.find(filter)
     .populate({ path: 'studentId', select: 'studentId photo course batchId', populate: [
       { path: 'userId', select: 'name phone' },
@@ -56,19 +99,7 @@ async function createResult(req, res) {
   if (!student || String(student.batchId || '') !== String(batch._id)) {
     throw new HttpError(400, 'The selected student does not belong to this batch');
   }
-  const metrics = {};
-  let hasMetric = false;
-  for (const [key, rule] of Object.entries(numericFields)) {
-    const raw = body[key];
-    if (raw === undefined || raw === null || raw === '') continue;
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < 0 || value > rule.max || (rule.integer && !Number.isInteger(value))) {
-      throw new HttpError(400, `${rule.label} must be a valid non-negative ${rule.integer ? 'whole number' : 'measurement'}`);
-    }
-    metrics[key] = value;
-    hasMetric = true;
-  }
-  if (!hasMetric) throw new HttpError(400, 'Enter at least one physical test result');
+  const metrics = normalizeMetrics(body);
   const testDate = body.testDate ? new Date(body.testDate) : new Date();
   if (Number.isNaN(testDate.getTime())) throw new HttpError(400, 'Test date is invalid');
   const remarks = String(body.remarks || '').trim();
@@ -89,4 +120,30 @@ async function createResult(req, res) {
   return respond(res, result, 201);
 }
 
-module.exports = { listResults, createResult };
+async function updateResult(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(400, 'Physical result ID is invalid');
+  const result = await PhysicalTrainingResult.findById(req.params.id);
+  if (!result) throw new HttpError(404, 'Physical training result not found');
+  const body = req.body || {};
+  const metrics = normalizeMetrics(body, result);
+  Object.assign(result, metrics);
+  if (Object.prototype.hasOwnProperty.call(body, 'testDate')) {
+    const testDate = new Date(body.testDate);
+    if (Number.isNaN(testDate.getTime())) throw new HttpError(400, 'Test date is invalid');
+    result.testDate = testDate;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'remarks')) {
+    const remarks = String(body.remarks || '').trim();
+    if (remarks.length > 1000) throw new HttpError(400, 'Remarks must be 1000 characters or fewer');
+    result.remarks = remarks;
+  }
+  await result.save();
+  await result.populate([
+    { path: 'studentId', select: 'studentId photo course batchId', populate: [{ path: 'userId', select: 'name phone' }, { path: 'batchId', select: 'name course' }] },
+    { path: 'batchId', select: 'name course' },
+    { path: 'recordedBy', select: 'name' },
+  ]);
+  return respond(res, result);
+}
+
+module.exports = { listResults, createResult, updateResult, applyDateRange, normalizeMetrics };
